@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;600;700;900&family=Noto+Sans:wght@400;600;700&display=swap');
+
+@import "tailwindcss";
+
+html {
+  font-family: 'Noto Sans', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.font-gujarati {
+  font-family: 'Noto Sans Gujarati', 'Noto Sans', sans-serif !important;
+}
+
+body {
+  color: rgb(15 23 42);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slowZoom {
+  from { transform: scale(1); }
+  to   { transform: scale(1.07); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+
+.animate-fade-up        { animation: fadeUp  0.7s ease both; }
+.animate-fade-up-delay1 { animation: fadeUp  0.7s ease 0.15s both; }
+.animate-fade-up-delay2 { animation: fadeUp  0.7s ease 0.30s both; }
+.animate-fade-up-delay3 { animation: fadeUp  0.7s ease 0.45s both; }
+.animate-fade-up-delay4 { animation: fadeUp  0.7s ease 0.60s both; }
+.animate-fade-in        { animation: fadeIn  1.2s ease both; }
+.animate-slow-zoom      { animation: slowZoom 12s ease-in-out infinite alternate; }
+.animate-float          { animation: float   5s ease-in-out infinite; }

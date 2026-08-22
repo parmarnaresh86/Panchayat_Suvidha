@@ -1,0 +1,77 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+
+class AuthController extends Controller
+{
+    public function register(Request $request)
+    {
+        $request->validate([
+            'username' => 'required|string|max:255|unique:users',
+            'password' => 'required|string|min:6',
+            'email' => 'nullable|email|max:255',
+            'role' => 'nullable|string|in:user,admin',
+            'adminSecret' => 'nullable|string',
+        ]);
+
+        $role = 'user';
+        if ($request->role === 'admin') {
+            if ($request->adminSecret !== config('app.admin_registration_secret', env('ADMIN_REGISTRATION_SECRET'))) {
+                return response()->json(['message' => 'Invalid admin registration secret.'], 403);
+            }
+            $role = 'admin';
+        }
+
+        $user = User::create([
+            'username' => $request->username,
+            'password' => Hash::make($request->password),
+            'email' => $request->email,
+            'role' => $role,
+        ]);
+
+        return response()->json([
+            'message' => ($role === 'admin' ? 'Admin' : 'User') . ' registered successfully'
+        ]);
+    }
+
+    public function login(Request $request)
+    {
+        $request->validate([
+            'username' => 'required|string',
+            'password' => 'required|string',
+            'role' => 'nullable|string|in:user,admin',
+        ]);
+
+        $user = User::where('username', $request->username)->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
+        }
+
+        if ($request->role === 'admin' && $user->role !== 'admin') {
+            return response()->json(['message' => 'Invalid admin credentials.'], 401);
+        }
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'role' => $user->role,
+            'user' => [
+                'id' => $user->id,
+                'username' => $user->username,
+            ],
+        ]);
+    }
+
+    public function legacyLogin(Request $request)
+    {
+        return $this->login($request);
+    }
+}

@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Databases
+*.sqlite
+*.sqlite3
+
+# Laravel
+/panchayat-laravel/storage/*.key
+/panchayat-laravel/bootstrap/cache/*.php
+/laravel-backend/storage/*.key
+/laravel-backend/bootstrap/cache/*.php
+
+# Build output
+dist/
+build/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,35 @@
+{
+  "modules": {
+    "animal-husbandry-and-dairy": {
+      "basicInfo": {
+        "totalCattle": "",
+        "dairyCenters": "",
+        "veterinaryContact": ""
+      },
+      "livestockDetails": []
+    },
+    "employment-board": {
+      "jobListings": [],
+      "governmentJobs": [],
+      "mgnrega": {
+        "jobCardHolders": "",
+        "workStatus": "",
+        "paymentStatus": "",
+        "applyRegistrationLink": "",
+        "resumeFileUrl": ""
+      }
+    },
+    "market-yard": {
+      "marketInfo": {
+        "marketYardName": "",
+        "location": "",
+        "timings": ""
+      },
+      "cropPrices": [],
+      "farmerListings": [],
+      "buyersTraders": [],
+      "transactions": [],
+      "governmentSchemes": []
+    }
+  }
+}

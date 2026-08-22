@@ -1,0 +1,41 @@
+{
+  "modules": {
+    "pgvcl-electric-service": {
+      "basicInfo": {
+        "electricityOfficeName": "",
+        "helplineNumber": "",
+        "officeAddress": ""
+      },
+      "billPayment": {
+        "redirectUrl": "https://www.pgvcl.com",
+        "lastPaymentStatus": ""
+      }
+    },
+    "st-bus-timetable": {
+      "busRoutes": []
+    },
+    "water-supply": {
+      "supplySchedule": [],
+      "complaints": {
+        "reportWaterIssueInfo": "",
+        "leakageComplaintInfo": "",
+        "complaintLink": ""
+      },
+      "contact": {
+        "waterDepartmentContact": ""
+      }
+    },
+    "health-center": {
+      "basicInfo": {
+        "healthCenterName": "",
+        "doctorName": "",
+        "contactNumber": ""
+      },
+      "services": {
+        "opdTiming": "",
+        "emergencyServices": "",
+        "ambulance108": ""
+      }
+    }
+  }
+}

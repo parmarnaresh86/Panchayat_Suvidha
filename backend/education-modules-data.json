@@ -1,0 +1,64 @@
+{
+  "modules": {
+    "primary-school": {
+      "basicInfo": {
+        "schoolName": "Sarvoday Sayla Pri School",
+        "address": "sayla district",
+        "udiseCode": "5177138",
+        "contactNumber": "352732588",
+        "headmasterName": "arvindbhai"
+      },
+      "records": [
+        {
+          "id": "record-1774023905076",
+          "name": "user",
+          "subject": "eng",
+          "qualification": "bsc",
+          "contact": "380300",
+          "photoUrl": ""
+        }
+      ],
+      "announcements": [
+        {
+          "id": "notice-1774023934828",
+          "type": "Event",
+          "date": "2026-03-20",
+          "message": "navratri"
+        }
+      ],
+      "map": {
+        "embedUrl": "",
+        "locationUrl": "https://maps.app.goo.gl/TXKUK5uicAaQyundA"
+      }
+    },
+    "anganwadi": {
+      "basicInfo": {
+        "centerName": "",
+        "workerName": "",
+        "helperName": "",
+        "contactNumber": "",
+        "location": ""
+      },
+      "records": [],
+      "announcements": [],
+      "map": {
+        "embedUrl": "",
+        "locationUrl": ""
+      }
+    },
+    "library": {
+      "basicInfo": {
+        "libraryName": "",
+        "location": "",
+        "timings": "",
+        "librarianName": ""
+      },
+      "records": [],
+      "announcements": [],
+      "map": {
+        "embedUrl": "",
+        "locationUrl": ""
+      }
+    }
+  }
+}

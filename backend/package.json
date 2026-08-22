@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate:data": "node migrate-json-to-sql.js",
+    "migrate:server": "node apply-sql-migration.js",
+    "migrate:verify": "node verify-migration.js",
+    "migrate:all": "npm run migrate:data && npm run migrate:server && npm run migrate:verify"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "fs-extra": "^11.3.4",
+    "jsonwebtoken": "^9.0.3",
+    "mssql": "^12.2.1",
+    "multer": "^2.1.1",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
