@@ -6,7 +6,9 @@ COPY . .
 RUN composer dump-autoload --optimize --no-dev
 
 FROM php:8.2-cli
-RUN docker-php-ext-install pdo pdo_sqlite
+RUN apt-get update && apt-get install -y libsqlite3-dev sqlite3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install pdo pdo_sqlite
 WORKDIR /var/www/html
 COPY --from=vendor /app .
 RUN chmod +x docker-entrypoint.sh \
