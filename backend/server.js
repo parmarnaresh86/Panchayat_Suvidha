@@ -276,6 +276,42 @@ app.delete('/super-admin/villages/:id', requireSuperAdmin, async (req, res) => {
     }
 });
 
+// Platform-level: set (or reset) a village admin's username/password directly,
+// bypassing the normal login flow. Creates the account if it doesn't exist yet.
+app.post('/super-admin/villages/:id/set-admin', requireSuperAdmin, async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) {
+            return res.status(400).json({ error: 'username and password are required' });
+        }
+        const vid = parseInt(req.params.id, 10);
+        const pool = await poolPromise;
+        const passwordHash = await bcrypt.hash(password, 10);
+
+        const existing = await pool.request()
+            .input('vid', sql.Int, vid)
+            .input('username', sql.NVarChar, username)
+            .query('SELECT id FROM Users WHERE village_id = @vid AND username = @username');
+
+        if (existing.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.Int, existing.recordset[0].id)
+                .input('password', sql.NVarChar, passwordHash)
+                .query('UPDATE Users SET password = @password, role = \'admin\' WHERE id = @id');
+        } else {
+            await pool.request()
+                .input('vid', sql.Int, vid)
+                .input('username', sql.NVarChar, username)
+                .input('password', sql.NVarChar, passwordHash)
+                .query('INSERT INTO Users (village_id, username, password, role) VALUES (@vid, @username, @password, \'admin\')');
+        }
+
+        res.json({ message: 'Admin credentials set' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // GET /villages — public, minimal directory of active villages (slug/name/
 // location only) so the login page can offer a village picker without
 // requiring super-admin auth. Tenant-exempt: not scoped to req.village.
