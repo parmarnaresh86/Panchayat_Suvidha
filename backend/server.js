@@ -48,6 +48,12 @@ const SUPER_ADMIN_TOKEN = 'super-admin-dummy-token';
 const app = express();
 const port = process.env.PORT || 5000;
 
+// Render (and most PaaS hosts) terminate TLS at a proxy and forward plain
+// HTTP internally — without this, req.protocol always reads 'http', so
+// every uploaded file's URL (fileUrl() below) would be saved as http://
+// even though the site is actually served over https.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
