@@ -4,6 +4,7 @@ import { getVillageSlug } from './api/tenant';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import DevVillageSwitcher from './components/DevVillageSwitcher';
+import VillageSwitcherPanel from './components/VillageSwitcherPanel';
 import VillageProfile from './pages/VillageProfile';
 import PanchayatDetails from './pages/PanchayatDetails';
 import Login from './pages/Login';
@@ -127,6 +128,7 @@ function AppContent() {
             </main>
             {!isAuthPage && !isSuperAdminPage && <Footer />}
             {!isSuperAdminPage && <DevVillageSwitcher />}
+            {!isSuperAdminPage && <VillageSwitcherPanel />}
         </div>
     );
 }
