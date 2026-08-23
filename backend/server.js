@@ -64,7 +64,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // In production the slug comes from the Host header's subdomain. Locally
 // (no real subdomains) it falls back to an X-Village-Slug header or a
 // ?village= query param, which the frontend sets from a dev village switcher.
-const TENANT_EXEMPT_PREFIXES = ['/super-admin', '/uploads'];
+const TENANT_EXEMPT_PREFIXES = ['/super-admin', '/uploads', '/villages'];
 
 function extractSlugFromHost(hostname) {
     if (!hostname) return null;
@@ -271,6 +271,20 @@ app.delete('/super-admin/villages/:id', requireSuperAdmin, async (req, res) => {
             .input('id', sql.Int, req.params.id)
             .query('DELETE FROM Village WHERE id = @id');
         res.json({ message: 'Village deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /villages — public, minimal directory of active villages (slug/name/
+// location only) so the login page can offer a village picker without
+// requiring super-admin auth. Tenant-exempt: not scoped to req.village.
+app.get('/villages', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .query("SELECT slug, name, taluka, district, state FROM Village WHERE is_active = 1 ORDER BY name");
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

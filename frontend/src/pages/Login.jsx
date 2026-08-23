@@ -1,6 +1,8 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ShieldCheck } from 'lucide-react';
 import axios from '../api/axios';
+import { useVillage } from '../context/VillageContext';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -11,6 +13,12 @@ const Login = () => {
     const [role, setRole]   = useState('user');
     const [error, setError] = useState('');
     const navigate = useNavigate();
+    const { villageSlug, switchVillage } = useVillage();
+
+    const [villages, setVillages] = useState(null);
+    useEffect(() => {
+        axios.get('/villages').then(res => setVillages(res.data)).catch(() => setVillages([]));
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -38,6 +46,30 @@ const Login = () => {
         <div className="min-h-screen flex items-center justify-center px-4">
             <Card className="w-full max-w-md">
                 <h1 className="text-3xl font-bold mb-6 text-center text-primary-600">Login / Register</h1>
+
+                {/* Village selector — which village site you're signing into */}
+                <div className="mb-5">
+                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="village-select">Village</label>
+                    {villages === null ? (
+                        <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+                    ) : (
+                        <select
+                            id="village-select"
+                            value={villageSlug || ''}
+                            onChange={(e) => switchVillage(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+                        >
+                            {!villages.some(v => v.slug === villageSlug) && villageSlug && (
+                                <option value={villageSlug}>{villageSlug}</option>
+                            )}
+                            {villages.map(v => (
+                                <option key={v.slug} value={v.slug}>
+                                    {v.name}{v.district ? ` — ${v.district}` : ''}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
 
                 {/* Role toggle */}
                 <div className="flex mb-6 bg-gray-100 p-1 rounded-lg">
@@ -98,6 +130,13 @@ const Login = () => {
                     Don't have an account?{' '}
                     <a href="/register" className="text-primary-600 font-semibold hover:underline">Register here</a>
                 </p>
+
+                <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+                    <Link to="/super-admin" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-primary-600">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Platform Super Admin login
+                    </Link>
+                </div>
             </Card>
         </div>
     );
