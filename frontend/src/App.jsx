@@ -1,5 +1,6 @@
-import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import { Suspense, lazy, useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { getVillageSlug } from './api/tenant';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import DevVillageSwitcher from './components/DevVillageSwitcher';
@@ -54,8 +55,25 @@ const NotFoundPage = () => (
 
 function AppContent() {
     const location = useLocation();
+    const navigate = useNavigate();
     const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
     const isSuperAdminPage = location.pathname.startsWith('/super-admin');
+
+    // Without real per-village subdomains, ?village=slug in the URL is the
+    // only thing that makes a link self-sufficient (shareable, safe to
+    // reload). Internal <Link>s only set the pathname, so the query would
+    // otherwise disappear on the very first click. Re-add it after every
+    // navigation so whatever's in the address bar always matches the
+    // village actually being rendered.
+    useEffect(() => {
+        if (isSuperAdminPage) return;
+        const params = new URLSearchParams(location.search);
+        const slug = getVillageSlug();
+        if (slug && params.get('village') !== slug) {
+            params.set('village', slug);
+            navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+        }
+    }, [location.pathname, location.search, isSuperAdminPage, navigate]);
 
     return (
         <div className="bg-linear-to-b from-gray-50 to-white min-h-screen">

@@ -74,6 +74,10 @@ function extractSlugFromHost(hostname) {
         // e.g. 'shayala.localhost' -> 'shayala'; plain 'localhost' -> none
         return parts.length > 1 ? parts[0] : null;
     }
+    // Render's own default domain (<service-name>.onrender.com) has 3 parts
+    // but is NOT a real per-village subdomain — the service name itself
+    // would otherwise get misread as the village slug.
+    if (hostname.endsWith('.onrender.com')) return null;
     // e.g. 'shayala.panchayatsuvidha.in' -> 'shayala'; 'panchayatsuvidha.in' -> none
     return parts.length > 2 ? parts[0] : null;
 }
