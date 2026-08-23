@@ -29,14 +29,14 @@ const PublishedPage = () => {
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center">
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
         </div>
     );
 
     if (error) return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center p-8 gap-4">
             <p className="text-2xl font-bold text-gray-700">{error}</p>
-            <Link to="/" className="text-orange-500 hover:underline font-medium">← Back to Home</Link>
+            <Link to="/" className="text-primary-500 hover:underline font-medium">← Back to Home</Link>
         </div>
     );
 

@@ -13,7 +13,9 @@ import {
   Save,
   X,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Menu as MenuIcon,
+  Store
 } from 'lucide-react';
 import axios from '../api/axios';
 import Card from '../components/Card';
@@ -24,7 +26,12 @@ import EducationModulesAdmin from './EducationModulesAdmin';
 import EmploymentModulesAdmin from './EmploymentModulesAdmin';
 import FacilitiesModulesAdmin from './FacilitiesModulesAdmin';
 import PageBuilderAdmin from './PageBuilderAdmin';
+import NavigationAdmin from './NavigationAdmin';
+import BusinessDirectoryAdmin from './BusinessDirectoryAdmin';
 import { useLanguage } from '../context/LanguageContext';
+import { useVillage } from '../context/VillageContext';
+import { THEME_PRESETS } from '../themePresets';
+import { GujaratiTextarea } from '../components/GujaratiInput';
 
 // ── Editable Form Download ─────────────────────────────────────
 const DEFAULT_LINKS = [
@@ -74,7 +81,7 @@ const EditableFormDownload = () => {
                 type={type}
                 value={obj[key]}
                 onChange={e => setObj(p => ({ ...p, [key]: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
         </div>
     );
@@ -85,13 +92,13 @@ const EditableFormDownload = () => {
                 <h3 className="text-lg font-bold flex items-center gap-2">
                     <span>📥</span> Form Download Links
                 </h3>
-                <Button onClick={() => setShowAdd(p => !p)} className="bg-orange-500 hover:bg-orange-600 text-white w-auto px-4 py-2 text-sm flex items-center gap-2">
+                <Button onClick={() => setShowAdd(p => !p)} className="bg-primary-500 hover:bg-primary-600 text-white w-auto px-4 py-2 text-sm flex items-center gap-2">
                     <Plus className="w-4 h-4" /> {showAdd ? 'Cancel' : 'Add Link'}
                 </Button>
             </div>
 
             {showAdd && (
-                <div className="mb-6 p-4 bg-orange-50 rounded-2xl border border-orange-100 space-y-3">
+                <div className="mb-6 p-4 bg-primary-50 rounded-2xl border border-primary-100 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {field('Title (EN)', 'title', newLink, setNewLink)}
                         {field('Title (GU)', 'titleGu', newLink, setNewLink)}
@@ -99,7 +106,7 @@ const EditableFormDownload = () => {
                         {field('URL', 'url', newLink, setNewLink, 'url')}
                     </div>
                     <div className="flex gap-2 pt-1">
-                        <Button onClick={addLink} className="bg-orange-500 hover:bg-orange-600 text-white w-auto px-4 py-2 text-sm">Add</Button>
+                        <Button onClick={addLink} className="bg-primary-500 hover:bg-primary-600 text-white w-auto px-4 py-2 text-sm">Add</Button>
                         <Button onClick={() => { setShowAdd(false); setNewLink(EMPTY_LINK); }} className="bg-white border border-gray-200 text-gray-700 w-auto px-4 py-2 text-sm">Cancel</Button>
                     </div>
                 </div>
@@ -117,7 +124,7 @@ const EditableFormDownload = () => {
                                     {field('URL', 'url', draft, setDraft, 'url')}
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button onClick={saveEdit} className="bg-orange-500 hover:bg-orange-600 text-white w-auto px-4 py-1.5 text-sm">Save</Button>
+                                    <Button onClick={saveEdit} className="bg-primary-500 hover:bg-primary-600 text-white w-auto px-4 py-1.5 text-sm">Save</Button>
                                     <Button onClick={cancelEdit} className="bg-white border border-gray-200 text-gray-700 w-auto px-4 py-1.5 text-sm">Cancel</Button>
                                 </div>
                             </div>
@@ -126,7 +133,7 @@ const EditableFormDownload = () => {
                                 <div className="min-w-0">
                                     <p className="font-semibold text-gray-900">{link.title} <span className="text-gray-400 font-normal text-sm">/ {link.titleGu}</span></p>
                                     <p className="text-xs text-gray-500 mt-0.5">{link.description}</p>
-                                    <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-orange-500 hover:underline truncate block mt-1">{link.url || '—'}</a>
+                                    <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-primary-500 hover:underline truncate block mt-1">{link.url || '—'}</a>
                                 </div>
                                 <div className="flex gap-1 shrink-0">
                                     <button onClick={() => startEdit(link)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4" /></button>
@@ -143,6 +150,7 @@ const EditableFormDownload = () => {
 
 const AdminDashboard = () => {
     const { t } = useLanguage();
+    const { refreshVillage } = useVillage();
     const [activeTab, setActiveTab] = useState('overview');
     const [adminSubTab, setAdminSubTab] = useState('staff-attendance');
     const [servicesSubTab, setServicesSubTab] = useState('admin-panel');
@@ -163,7 +171,8 @@ const AdminDashboard = () => {
         total_households: '',
         description: '',
         history_en: '',
-        history_gu: ''
+        history_gu: '',
+        theme: 'classic'
     });
     const [villageSaving, setVillageSaving] = useState(false);
 
@@ -213,7 +222,8 @@ const AdminDashboard = () => {
             total_households: villageData?.total_households ?? '',
             description: villageData?.description ?? '',
             history_en: villageData?.history?.english ?? '',
-            history_gu: villageData?.history?.gujarati ?? ''
+            history_gu: villageData?.history?.gujarati ?? '',
+            theme: villageData?.theme ?? 'classic'
         });
     }, [villageData]);
 
@@ -289,6 +299,7 @@ const AdminDashboard = () => {
             });
             alert('Village updated successfully!');
             fetchData();
+            refreshVillage();
         } catch (error) {
             console.error('Village update failed:', error);
             alert('Failed to update village.');
@@ -479,7 +490,7 @@ const AdminDashboard = () => {
             {/* Sidebar */}
             <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col">
                 <div className="p-6 border-b border-gray-100">
-                    <h2 className="text-xl font-bold text-orange-600 flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-primary-600 flex items-center gap-2">
                         <LayoutDashboard className="w-6 h-6" /> {t('Admin Panel', 'એડમિન પેનલ')}
                     </h2>
                 </div>
@@ -501,6 +512,18 @@ const AdminDashboard = () => {
                         label={t('Page Builder', 'પેજ બિલ્ડર')}
                         active={activeTab === 'page-builder'}
                         onClick={() => setActiveTab('page-builder')}
+                    />
+                    <SidebarItem
+                        icon={<MenuIcon className="w-5 h-5" />}
+                        label={t('Navigation', 'નેવિગેશન')}
+                        active={activeTab === 'navigation'}
+                        onClick={() => setActiveTab('navigation')}
+                    />
+                    <SidebarItem
+                        icon={<Store className="w-5 h-5" />}
+                        label={t('Business Directory', 'બિઝનેસ ડિરેક્ટરી')}
+                        active={activeTab === 'business'}
+                        onClick={() => setActiveTab('business')}
                     />
                     <SidebarItem
                         icon={<Users className="w-5 h-5" />}
@@ -526,6 +549,8 @@ const AdminDashboard = () => {
                         {activeTab === 'village' && t('Village Profile', 'ગામની પ્રોફાઇલ')}
                         {activeTab === 'services' && t('Services', 'સેવાઓ')}
                         {activeTab === 'page-builder' && t('Page Builder', 'પેજ બિલ્ડર')}
+                        {activeTab === 'navigation' && t('Navigation', 'નેવિગેશન')}
+                        {activeTab === 'business' && t('Business Directory', 'બિઝનેસ ડિરેક્ટરી')}
                         {activeTab === 'contact' && t('Contact', 'સંપર્ક')}
                     </h1>
                     
@@ -622,12 +647,13 @@ const AdminDashboard = () => {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold text-gray-600">{t('History (GU)', 'ઇતિહાસ (ગુજરાતી)')}</label>
-                                        <textarea
+                                        <GujaratiTextarea
                                             className="w-full border border-gray-200 rounded-xl p-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                                             rows={2}
+                                            placeholder="Type phonetically, e.g. 'saayalaa nu itihaas'"
                                             value={villageForm.history_gu}
-                                            onChange={(e) =>
-                                                setVillageForm((p) => ({ ...p, history_gu: e.target.value }))
+                                            onChange={(val) =>
+                                                setVillageForm((p) => ({ ...p, history_gu: val }))
                                             }
                                         />
                                     </div>
@@ -635,16 +661,34 @@ const AdminDashboard = () => {
                             </div>
                         </Card>
 
+                        {/* Theme */}
+                        <Card>
+                            <h3 className="text-lg font-bold mb-4">{t('Site Theme', 'સાઇટ થીમ')}</h3>
+                            <div className="grid grid-cols-3 gap-3">
+                                {THEME_PRESETS.map(preset => (
+                                    <button
+                                        key={preset.key}
+                                        type="button"
+                                        onClick={() => setVillageForm(p => ({ ...p, theme: preset.key }))}
+                                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-colors ${villageForm.theme === preset.key ? 'border-primary-400 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}
+                                    >
+                                        <span className="w-8 h-8 rounded-full border border-black/10" style={{ background: preset.swatch }} />
+                                        <span className="text-xs font-semibold text-gray-700">{preset.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </Card>
+
                         {/* Image Upload Section */}
                         <Card>
                             <div className="flex items-center gap-3 mb-6">
-                                <ImageIcon className="w-6 h-6 text-orange-600" />
+                                <ImageIcon className="w-6 h-6 text-primary-600" />
                                 <h3 className="text-lg font-bold">{t('Village Photos', 'ગામના ફોટા')}</h3>
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
-                                    <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-orange-300 transition-colors bg-gray-50/50">
+                                    <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-primary-300 transition-colors bg-gray-50/50">
                                         <input 
                                             type="file" 
                                             id="file-upload" 
@@ -653,7 +697,7 @@ const AdminDashboard = () => {
                                             accept="image/*"
                                         />
                                         <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
-                                            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-orange-500 mb-2">
+                                            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-primary-500 mb-2">
                                                 <Upload className="w-6 h-6" />
                                             </div>
                                             <span className="text-sm font-bold text-gray-700">
@@ -665,7 +709,7 @@ const AdminDashboard = () => {
                                     <Button 
                                         onClick={handleUpload}
                                         disabled={!selectedImage || uploading}
-                                        className={`${!selectedImage ? 'bg-gray-300' : 'bg-orange-600 hover:bg-orange-700'} text-white font-bold py-3`}
+                                        className={`${!selectedImage ? 'bg-gray-300' : 'bg-primary-600 hover:bg-primary-700'} text-white font-bold py-3`}
                                     >
                                         {uploading ? t('Uploading...', 'અપલોડ થઈ રહ્યું છે...') : t('Confirm Upload', 'અપલોડ કન્ફર્મ કરો')}
                                     </Button>
@@ -695,19 +739,19 @@ const AdminDashboard = () => {
                         <Card>
                             <div className="flex items-center justify-between mb-6">
                                 <div className="flex items-center gap-3">
-                                    <BarChart3 className="w-6 h-6 text-orange-600" />
+                                    <BarChart3 className="w-6 h-6 text-primary-600" />
                                     <h3 className="text-lg font-bold">{t('Census Data', 'વસ્તી ગણતરી ડેટા')}</h3>
                                 </div>
                                 <Button
                                     onClick={() => setShowAddCensus((p) => !p)}
-                                    className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 px-4 py-2 text-sm whitespace-nowrap"
+                                    className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm whitespace-nowrap"
                                 >
                                     <Plus className="w-4 h-4" /> {showAddCensus ? t('Cancel', 'રદ કરો') : t('Add Record', 'રેકોર્ડ ઉમેરો')}
                                 </Button>
                             </div>
 
                             {showAddCensus && (
-                                <div className="mb-6 p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                                <div className="mb-6 p-4 bg-primary-50 rounded-2xl border border-primary-100">
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-gray-600">{t('Category', 'શ્રેણી')}</label>
@@ -727,7 +771,7 @@ const AdminDashboard = () => {
                                         </div>
                                     </div>
                                     <div className="flex gap-3 mt-3">
-                                        <Button onClick={handleAddCensus} disabled={censusSaving} className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2 text-sm whitespace-nowrap">
+                                        <Button onClick={handleAddCensus} disabled={censusSaving} className="bg-primary-500 hover:bg-primary-600 text-white font-bold px-5 py-2 text-sm whitespace-nowrap">
                                             {censusSaving ? t('Saving...', 'સાચવી રહ્યું છે...') : t('Add Record', 'રેકોર્ડ ઉમેરો')}
                                         </Button>
                                         <Button onClick={() => { setShowAddCensus(false); setCensusForm({ category: '', total: '', male: '', female: '' }); }} className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold px-5 py-2 text-sm whitespace-nowrap">
@@ -789,16 +833,16 @@ const AdminDashboard = () => {
                         <Card>
                             <div className="flex items-center justify-between mb-6">
                                 <div className="flex items-center gap-3">
-                                    <Users className="w-6 h-6 text-orange-600" />
+                                    <Users className="w-6 h-6 text-primary-600" />
                                     <h3 className="text-lg font-bold">{t('Panchayat Members', 'પંચાયત સભ્યો')}</h3>
-                                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-semibold">
+                                    <span className="text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded-full font-semibold">
                                         {members.length}/3
                                     </span>
                                 </div>
                                 {members.length < 3 && (
                                     <Button
                                         onClick={() => setShowAddMember(p => !p)}
-                                        className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 px-4 py-2 text-sm whitespace-nowrap"
+                                        className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm whitespace-nowrap"
                                     >
                                         <Plus className="w-4 h-4" />
                                         {showAddMember ? t('Cancel', 'રદ કરો') : t('Add Member', 'સભ્ય ઉમેરો')}
@@ -811,7 +855,7 @@ const AdminDashboard = () => {
 
                             {/* Add Member Form */}
                             {showAddMember && (
-                                <div className="mb-6 p-4 bg-orange-50 rounded-2xl border border-orange-100 space-y-4">
+                                <div className="mb-6 p-4 bg-primary-50 rounded-2xl border border-primary-100 space-y-4">
                                     <h4 className="font-bold text-gray-700 text-sm">{t('New Member Details', 'નવા સભ્યની વિગતો')}</h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div className="space-y-1">
@@ -823,7 +867,7 @@ const AdminDashboard = () => {
                                             <select
                                                 value={newMember.role}
                                                 onChange={e => setNewMember(p => ({ ...p, role: e.target.value }))}
-                                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
                                             >
                                                 <option value="">{t('Select role', 'ભૂમિકા પસંદ કરો')}</option>
                                                 <option value="Sarpanch">{t('Sarpanch', 'સરપંચ')}</option>
@@ -850,7 +894,7 @@ const AdminDashboard = () => {
                                                 value={newMember.description}
                                                 onChange={e => setNewMember(p => ({ ...p, description: e.target.value }))}
                                                 placeholder={t('Short bio...', 'ટૂંકી માહિતી...')}
-                                                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
                                             />
                                         </div>
                                     </div>
@@ -858,7 +902,7 @@ const AdminDashboard = () => {
                                         <Button
                                             onClick={handleAddMember}
                                             disabled={addMemberSaving}
-                                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2 text-sm whitespace-nowrap"
+                                            className="bg-primary-500 hover:bg-primary-600 text-white font-bold px-5 py-2 text-sm whitespace-nowrap"
                                         >
                                             {addMemberSaving ? t('Adding...', 'ઉમેરી રહ્યું છે...') : t('Add Member', 'સભ્ય ઉમેરો')}
                                         </Button>
@@ -876,11 +920,11 @@ const AdminDashboard = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {members.map((member) => (
                                     <div key={member.id} className="border border-gray-100 rounded-2xl p-4 flex gap-4 items-start hover:shadow-sm transition-shadow">
-                                        <div className="w-16 h-16 rounded-xl shrink-0 overflow-hidden bg-orange-100 border border-gray-200">
+                                        <div className="w-16 h-16 rounded-xl shrink-0 overflow-hidden bg-primary-100 border border-gray-200">
                                             {member.photo_url ? (
                                                 <img src={member.photo_url} alt={member.name} className="w-full h-full object-cover" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-orange-600 text-2xl font-bold">
+                                                <div className="w-full h-full flex items-center justify-center text-primary-600 text-2xl font-bold">
                                                     {member.name.charAt(0)}
                                                 </div>
                                             )}
@@ -898,7 +942,7 @@ const AdminDashboard = () => {
                                                             <select
                                                                 value={memberDraft.role}
                                                                 onChange={e => setMemberDraft(p => ({ ...p, role: e.target.value }))}
-                                                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
                                                             >
                                                                 <option value="Sarpanch">{t('Sarpanch', 'સરપંચ')}</option>
                                                                 <option value="Secretary">{t('Secretary', 'સચિવ')}</option>
@@ -924,7 +968,7 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <Button onClick={handleSaveMemberEdit} disabled={memberEditSaving} className="bg-orange-500 hover:bg-orange-600 text-white text-xs py-1.5 px-4 whitespace-nowrap">
+                                                        <Button onClick={handleSaveMemberEdit} disabled={memberEditSaving} className="bg-primary-500 hover:bg-primary-600 text-white text-xs py-1.5 px-4 whitespace-nowrap">
                                                             {memberEditSaving ? t('Saving...', 'સાચવી રહ્યું છે...') : t('Save', 'સાચવો')}
                                                         </Button>
                                                         <Button onClick={handleCancelMemberEdit} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-4 whitespace-nowrap">
@@ -936,13 +980,13 @@ const AdminDashboard = () => {
                                                 <>
                                                     <div className="flex items-start justify-between gap-2">
                                                         <h4 className="font-bold text-gray-900 truncate">{member.name}</h4>
-                                                        <span className="shrink-0 bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{member.role}</span>
+                                                        <span className="shrink-0 bg-primary-100 text-primary-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{member.role}</span>
                                                     </div>
                                                     <p className="text-xs text-gray-500 mt-0.5">{member.email}</p>
                                                     <p className="text-xs text-gray-500">{member.mobile}</p>
                                                     <button
                                                         onClick={() => handleStartMemberEdit(member)}
-                                                        className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700"
+                                                        className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700"
                                                     >
                                                         <Edit className="w-3.5 h-3.5" /> {t('Edit Member', 'સભ્ય સંપાદિત કરો')}
                                                     </button>
@@ -972,8 +1016,8 @@ const AdminDashboard = () => {
                                         onClick={() => setServicesSubTab(cat.id)}
                                         className={`px-5 py-2 rounded-xl text-sm font-semibold border transition-all duration-150
                                             ${servicesSubTab === cat.id
-                                                ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                                                : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                                                ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
+                                                : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300 hover:text-primary-600'
                                             }`}
                                     >
                                         {cat.label}
@@ -997,8 +1041,8 @@ const AdminDashboard = () => {
                                                 onClick={() => setAdminSubTab(cat.id)}
                                                 className={`px-5 py-2 rounded-xl text-sm font-semibold border transition-all duration-150
                                                     ${adminSubTab === cat.id
-                                                        ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                                                        ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
+                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300 hover:text-primary-600'
                                                     }`}
                                             >
                                                 {cat.label}
@@ -1020,6 +1064,14 @@ const AdminDashboard = () => {
 
                 {activeTab === 'page-builder' && (
                     <PageBuilderAdmin />
+                )}
+
+                {activeTab === 'navigation' && (
+                    <NavigationAdmin />
+                )}
+
+                {activeTab === 'business' && (
+                    <BusinessDirectoryAdmin />
                 )}
 
                 {activeTab === 'contact' && (
@@ -1132,7 +1184,7 @@ const ContactAdmin = ({ t }) => {
                     <div className="flex items-center gap-3">
                         <h3 className="text-lg font-bold">{t('Contact Messages', 'સંપર્ક સંદેશાઓ')}</h3>
                         {unreadCount > 0 && (
-                            <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1 rounded-full">
+                            <span className="bg-primary-100 text-primary-700 text-xs font-bold px-2 py-1 rounded-full">
                                 {unreadCount} {t('new', 'નવા')}
                             </span>
                         )}
@@ -1144,13 +1196,13 @@ const ContactAdmin = ({ t }) => {
                 ) : (
                     <div className="space-y-3">
                         {messages.map(msg => (
-                            <div key={msg.id} className={`border rounded-2xl p-4 transition-colors ${msg.is_read ? 'border-gray-100 bg-white' : 'border-orange-100 bg-orange-50'}`}>
+                            <div key={msg.id} className={`border rounded-2xl p-4 transition-colors ${msg.is_read ? 'border-gray-100 bg-white' : 'border-primary-100 bg-primary-50'}`}>
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <p className="font-bold text-gray-900">{msg.name}</p>
                                             {!msg.is_read && (
-                                                <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">{t('New', 'નવું')}</span>
+                                                <span className="bg-primary-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">{t('New', 'નવું')}</span>
                                             )}
                                         </div>
                                         <p className="text-xs text-gray-500 mb-2">{msg.email} • {new Date(msg.created_at).toLocaleString()}</p>
@@ -1181,7 +1233,7 @@ const SidebarItem = ({ icon, label, active, onClick }) => (
         onClick={onClick}
         className={`flex items-center gap-3 w-full p-3 rounded-xl transition-all duration-300 font-medium ${
             active 
-            ? 'bg-orange-50 text-orange-600 shadow-sm shadow-orange-100' 
+            ? 'bg-primary-50 text-primary-600 shadow-sm shadow-primary-100' 
             : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
         }`}
     >

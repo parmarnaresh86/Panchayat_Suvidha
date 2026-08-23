@@ -13,13 +13,13 @@ const Footer = () => {
 
                 {/* Nav links */}
                 <div className="flex items-center gap-4">
-                    <Link to="/" className="hover:text-orange-400 transition-colors">{t('Village Profile', 'ગામ પ્રોફાઇલ')}</Link>
-                    <Link to="/services" className="hover:text-orange-400 transition-colors">{t('Services', 'સેવાઓ')}</Link>
-                    <Link to="/login" className="hover:text-orange-400 transition-colors">{t('Admin Login', 'એડમિન લોગિન')}</Link>
+                    <Link to="/" className="hover:text-primary-400 transition-colors">{t('Village Profile', 'ગામ પ્રોફાઇલ')}</Link>
+                    <Link to="/services" className="hover:text-primary-400 transition-colors">{t('Services', 'સેવાઓ')}</Link>
+                    <Link to="/login" className="hover:text-primary-400 transition-colors">{t('Admin Login', 'એડમિન લોગિન')}</Link>
                 </div>
 
                 {/* Contact */}
-                <a href="mailto:support@panchayatsuvidha.in" className="hover:text-orange-400 transition-colors">
+                <a href="mailto:support@panchayatsuvidha.in" className="hover:text-primary-400 transition-colors">
                     {t('Contact us for website', 'વેબસાઇટ માટે સંપર્ક કરો')}
                 </a>
 

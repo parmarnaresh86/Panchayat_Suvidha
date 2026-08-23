@@ -44,7 +44,7 @@ const ServicesSection = () => {
 
     if (!services) {
         return (
-            <section className="mt-12 bg-linear-to-r from-white via-orange-50 to-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-pulse">
+            <section className="mt-12 bg-linear-to-r from-white via-primary-50 to-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-pulse">
                 <div className="text-gray-600 font-semibold mb-6">{t('Loading services...', 'સેવાઓ લોડ થાય છે...')}</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {[...Array(8)].map((_, idx) => (
@@ -56,7 +56,7 @@ const ServicesSection = () => {
     }
 
     return (
-        <section id="village-services" className="mt-12 bg-linear-to-r from-white via-orange-50 to-white p-8 rounded-3xl border border-slate-200 shadow-lg">
+        <section id="village-services" className="mt-12 bg-linear-to-r from-white via-primary-50 to-white p-8 rounded-3xl border border-slate-200 shadow-lg">
             <div className="flex items-center justify-between mb-4 border-b border-gray-200 pb-4">
                 <h2 className="text-3xl font-extrabold text-slate-900 flex items-center">
                     <span className="mr-3 inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 text-blue-700">
@@ -68,7 +68,7 @@ const ServicesSection = () => {
             </div>
             
             {error && (
-                <div className="mb-4 p-3 rounded-lg bg-orange-50 border border-orange-200 text-orange-700">
+                <div className="mb-4 p-3 rounded-lg bg-primary-50 border border-primary-200 text-primary-700">
                     {error}
                 </div>
             )}

@@ -1,162 +1,271 @@
-
--- Create Village table
-CREATE TABLE Village (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    name NVARCHAR(255) NOT NULL,
-    taluka NVARCHAR(255),
-    district NVARCHAR(255),
-    state NVARCHAR(255),
-    area NVARCHAR(100),
-    total_households NVARCHAR(100),
-    description NVARCHAR(MAX),
-    history_en NVARCHAR(MAX),
-    history_gu NVARCHAR(MAX)
+-- Village table — this IS the tenant table. One row per village site.
+CREATE TABLE IF NOT EXISTS Village (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL,           -- subdomain, e.g. 'sayla' -> sayla.panchayatsuvidha.in
+    is_active INTEGER NOT NULL DEFAULT 1,
+    theme TEXT NOT NULL DEFAULT 'classic', -- 'classic' | 'modern-minimal' | 'heritage'
+    name TEXT NOT NULL,
+    taluka TEXT,
+    district TEXT,
+    state TEXT,
+    area TEXT,
+    total_households TEXT,
+    description TEXT,
+    history_en TEXT,
+    history_gu TEXT
 );
 
--- Create Achievements table
-CREATE TABLE Achievements (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    village_id INT FOREIGN KEY REFERENCES Village(id),
-    title NVARCHAR(255) NOT NULL,
-    awarded_by NVARCHAR(255)
+-- Achievements table
+CREATE TABLE IF NOT EXISTS Achievements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    awarded_by TEXT
 );
 
--- Create SpecialPersonalities table
-CREATE TABLE SpecialPersonalities (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    village_id INT FOREIGN KEY REFERENCES Village(id),
-    name NVARCHAR(255) NOT NULL,
-    achievement NVARCHAR(255),
-    role NVARCHAR(255)
+-- SpecialPersonalities table
+CREATE TABLE IF NOT EXISTS SpecialPersonalities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    achievement TEXT,
+    role TEXT
 );
 
--- Create VillageImages table
-CREATE TABLE VillageImages (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    village_id INT FOREIGN KEY REFERENCES Village(id),
-    image_url NVARCHAR(MAX) NOT NULL
+-- VillageImages table
+CREATE TABLE IF NOT EXISTS VillageImages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL
 );
 
--- Create Census table
-CREATE TABLE Census (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    village_id INT FOREIGN KEY REFERENCES Village(id),
-    category NVARCHAR(255) NOT NULL,
-    total INT,
-    male INT,
-    female INT
+-- Census table
+CREATE TABLE IF NOT EXISTS Census (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    total INTEGER,
+    male INTEGER,
+    female INTEGER
 );
 
--- Create PanchayatMembers table
-CREATE TABLE PanchayatMembers (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    village_id INT FOREIGN KEY REFERENCES Village(id),
-    role NVARCHAR(255) NOT NULL, -- 'Sarpanch' or 'Secretary'
-    name NVARCHAR(255) NOT NULL,
-    email NVARCHAR(255),
-    mobile NVARCHAR(20),
-    address NVARCHAR(MAX),
-    description NVARCHAR(MAX),
-    photo_url NVARCHAR(MAX)
+-- PanchayatMembers table
+CREATE TABLE IF NOT EXISTS PanchayatMembers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    role TEXT NOT NULL, -- 'Sarpanch' or 'Secretary'
+    name TEXT NOT NULL,
+    email TEXT,
+    mobile TEXT,
+    address TEXT,
+    description TEXT,
+    photo_url TEXT
 );
 
--- Create PageContent table (for Live Page Editor — section layout per page)
-CREATE TABLE PageContent (
-    id          INT PRIMARY KEY IDENTITY(1,1),
-    page_name   NVARCHAR(100) UNIQUE NOT NULL,
-    content_json NVARCHAR(MAX),
-    updated_at  DATETIME DEFAULT GETDATE()
+-- Pages table (Page Builder — every page, including the homepage at slug
+-- 'home', per village)
+CREATE TABLE IF NOT EXISTS Pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    content_json TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(village_id, slug)
 );
 
--- Create Pages table (for Page Builder)
-CREATE TABLE Pages (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    title NVARCHAR(255) NOT NULL,
-    slug NVARCHAR(255) UNIQUE NOT NULL,
-    content_json NVARCHAR(MAX),
-    status NVARCHAR(20) NOT NULL DEFAULT 'draft',
-    created_at DATETIME DEFAULT GETDATE()
+-- Services table
+CREATE TABLE IF NOT EXISTS Services (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    guTitle TEXT,
+    cardTo TEXT,
+    display_order INTEGER DEFAULT 0,
+    PRIMARY KEY (village_id, id)
 );
 
--- Create Services table
-CREATE TABLE Services (
-    id NVARCHAR(100) PRIMARY KEY,
-    title NVARCHAR(255) NOT NULL,
-    guTitle NVARCHAR(255),
-    cardTo NVARCHAR(500),
-    display_order INT DEFAULT 0
+-- ServiceItems table
+CREATE TABLE IF NOT EXISTS ServiceItems (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    service_id TEXT NOT NULL,
+    label TEXT,
+    to_path TEXT,
+    department TEXT,
+    eligibility TEXT,
+    description TEXT,
+    documents TEXT,
+    [procedure] TEXT,
+    fees TEXT,
+    contact TEXT,
+    helpline TEXT,
+    officialLink TEXT,
+    display_order INTEGER DEFAULT 0,
+    PRIMARY KEY (village_id, id),
+    FOREIGN KEY (village_id, service_id) REFERENCES Services(village_id, id) ON DELETE CASCADE
 );
 
--- Create ServiceItems table
-CREATE TABLE ServiceItems (
-    id NVARCHAR(100) PRIMARY KEY,
-    service_id NVARCHAR(100) NOT NULL,
-    label NVARCHAR(500),
-    to_path NVARCHAR(500),
-    department NVARCHAR(500),
-    eligibility NVARCHAR(MAX),
-    description NVARCHAR(MAX),
-    documents NVARCHAR(MAX),
-    [procedure] NVARCHAR(MAX),
-    fees NVARCHAR(500),
-    contact NVARCHAR(500),
-    helpline NVARCHAR(500),
-    officialLink NVARCHAR(500),
-    display_order INT DEFAULT 0,
-    FOREIGN KEY (service_id) REFERENCES Services(id) ON DELETE CASCADE
+-- EducationModules table
+CREATE TABLE IF NOT EXISTS EducationModules (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    module_id TEXT NOT NULL,
+    basic_info TEXT,
+    map_info TEXT,
+    PRIMARY KEY (village_id, module_id)
 );
 
--- Create EducationModules table
-CREATE TABLE EducationModules (
-    module_id NVARCHAR(100) PRIMARY KEY,
-    basic_info NVARCHAR(MAX),
-    map_info NVARCHAR(MAX)
+-- EducationRecords table (staff, children, books, etc.)
+CREATE TABLE IF NOT EXISTS EducationRecords (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    module_id TEXT NOT NULL,
+    record_data TEXT,
+    PRIMARY KEY (village_id, id),
+    FOREIGN KEY (village_id, module_id) REFERENCES EducationModules(village_id, module_id) ON DELETE CASCADE
 );
 
--- Create EducationRecords table (staff, children, books, etc.)
-CREATE TABLE EducationRecords (
-    id NVARCHAR(100) PRIMARY KEY,
-    module_id NVARCHAR(100) NOT NULL,
-    record_data NVARCHAR(MAX),
-    FOREIGN KEY (module_id) REFERENCES EducationModules(module_id) ON DELETE CASCADE
+-- EducationAnnouncements table
+CREATE TABLE IF NOT EXISTS EducationAnnouncements (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    module_id TEXT NOT NULL,
+    type TEXT,
+    date TEXT,
+    message TEXT,
+    PRIMARY KEY (village_id, id),
+    FOREIGN KEY (village_id, module_id) REFERENCES EducationModules(village_id, module_id) ON DELETE CASCADE
 );
 
--- Create EducationAnnouncements table
-CREATE TABLE EducationAnnouncements (
-    id NVARCHAR(100) PRIMARY KEY,
-    module_id NVARCHAR(100) NOT NULL,
-    type NVARCHAR(100),
-    date NVARCHAR(50),
-    message NVARCHAR(MAX),
-    FOREIGN KEY (module_id) REFERENCES EducationModules(module_id) ON DELETE CASCADE
+-- EmploymentModules table
+CREATE TABLE IF NOT EXISTS EmploymentModules (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    module_id TEXT NOT NULL,
+    basic_info TEXT,
+    PRIMARY KEY (village_id, module_id)
 );
 
--- Create EmploymentModules table
-CREATE TABLE EmploymentModules (
-    module_id NVARCHAR(100) PRIMARY KEY,
-    basic_info NVARCHAR(MAX)
+-- EmploymentRecords table (livestock, jobs, crop prices, etc.)
+CREATE TABLE IF NOT EXISTS EmploymentRecords (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    module_id TEXT NOT NULL,
+    record_type TEXT,
+    record_data TEXT,
+    PRIMARY KEY (village_id, id),
+    FOREIGN KEY (village_id, module_id) REFERENCES EmploymentModules(village_id, module_id) ON DELETE CASCADE
 );
 
--- Create EmploymentRecords table (livestock, jobs, crop prices, etc.)
-CREATE TABLE EmploymentRecords (
-    id NVARCHAR(100) PRIMARY KEY,
-    module_id NVARCHAR(100) NOT NULL,
-    record_type NVARCHAR(100),
-    record_data NVARCHAR(MAX),
-    FOREIGN KEY (module_id) REFERENCES EmploymentModules(module_id) ON DELETE CASCADE
+-- FacilitiesModules table
+CREATE TABLE IF NOT EXISTS FacilitiesModules (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    module_id TEXT NOT NULL,
+    basic_info TEXT,
+    PRIMARY KEY (village_id, module_id)
 );
 
--- Create FacilitiesModules table
-CREATE TABLE FacilitiesModules (
-    module_id NVARCHAR(100) PRIMARY KEY,
-    basic_info NVARCHAR(MAX)
+-- FacilitiesRecords table (bus routes, water supply schedule, etc.)
+CREATE TABLE IF NOT EXISTS FacilitiesRecords (
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    module_id TEXT NOT NULL,
+    record_type TEXT,
+    record_data TEXT,
+    PRIMARY KEY (village_id, id),
+    FOREIGN KEY (village_id, module_id) REFERENCES FacilitiesModules(village_id, module_id) ON DELETE CASCADE
 );
 
--- Create FacilitiesRecords table (bus routes, water supply schedule, etc.)
-CREATE TABLE FacilitiesRecords (
-    id NVARCHAR(100) PRIMARY KEY,
-    module_id NVARCHAR(100) NOT NULL,
-    record_type NVARCHAR(100),
-    record_data NVARCHAR(MAX),
-    FOREIGN KEY (module_id) REFERENCES FacilitiesModules(module_id) ON DELETE CASCADE
+-- Users table (registration/login) — scoped to a village (per-village admin/user accounts).
+-- The platform super-admin (manages the Village list itself) is not a row here —
+-- it authenticates via SUPER_ADMIN_USERNAME/PASSWORD env vars (see server.js).
+CREATE TABLE IF NOT EXISTS Users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    username TEXT NOT NULL,
+    password TEXT NOT NULL,
+    email TEXT,
+    role TEXT NOT NULL DEFAULT 'user',
+    UNIQUE(village_id, username)
+);
+
+-- NavigationItems table — per-village menu/submenu items shown in the Navbar.
+-- link_type: 'builtin' (e.g. link_value='/services'), 'page' (link_value=a
+-- Pages.slug, rendered at /p/:slug, or 'home' for the homepage), or 'url'
+-- (external link_value). parent_id nesting supports one level of submenu.
+CREATE TABLE IF NOT EXISTS NavigationItems (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id    INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    parent_id     INTEGER REFERENCES NavigationItems(id) ON DELETE CASCADE,
+    label_en      TEXT NOT NULL,
+    label_gu      TEXT,
+    link_type     TEXT NOT NULL DEFAULT 'page',
+    link_value    TEXT,
+    icon_url      TEXT,
+    display_order INTEGER DEFAULT 0
+);
+
+-- Businesses table — the village's Digital Business Directory. Each row is
+-- one business listing; searchable/browsable by anyone, managed by the
+-- village admin.
+CREATE TABLE IF NOT EXISTS Businesses (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id      INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    slug            TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    name_gu         TEXT,
+    category        TEXT,
+    description     TEXT,
+    description_gu  TEXT,
+    owner_name      TEXT,
+    phone           TEXT,
+    email           TEXT,
+    address         TEXT,
+    website         TEXT,
+    logo_url        TEXT,
+    cover_url       TEXT,
+    is_published    INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(village_id, slug)
+);
+
+-- BusinessProducts table — a business's product/service portfolio, shown
+-- on its profile page.
+CREATE TABLE IF NOT EXISTS BusinessProducts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id    INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    business_id   INTEGER NOT NULL REFERENCES Businesses(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    name_gu       TEXT,
+    description   TEXT,
+    price         TEXT,
+    image_url     TEXT,
+    display_order INTEGER DEFAULT 0
+);
+
+-- BusinessPages table — custom, Page-Builder-style tabs a business's profile
+-- can have in addition to the built-in Overview/Products/Contact tabs (e.g.
+-- "Our Story", "Gallery", "Certifications"). content_json is a block array,
+-- same shape and BlockRenderer as the site-wide Pages table.
+CREATE TABLE IF NOT EXISTS BusinessPages (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id    INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    business_id   INTEGER NOT NULL REFERENCES Businesses(id) ON DELETE CASCADE,
+    title         TEXT NOT NULL,
+    slug          TEXT NOT NULL,
+    content_json  TEXT,
+    display_order INTEGER DEFAULT 0,
+    created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(business_id, slug)
+);
+
+-- ContactMessages table
+CREATE TABLE IF NOT EXISTS ContactMessages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    email      TEXT NOT NULL,
+    message    TEXT NOT NULL,
+    is_read    INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

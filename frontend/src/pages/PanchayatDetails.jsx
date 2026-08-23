@@ -14,7 +14,7 @@ const PanchayatDetails = () => {
 
     return (
         <div className="container mx-auto p-6">
-            <h1 className="text-4xl font-bold text-center mb-8 text-orange-700">
+            <h1 className="text-4xl font-bold text-center mb-8 text-primary-700">
                 {t('Panchayat Members', 'પંચાયતના સભ્યો')}
             </h1>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -26,7 +26,7 @@ const PanchayatDetails = () => {
                             className="w-40 h-40 rounded-full mx-auto mb-4 shadow-lg object-cover"
                         />
                         <h2 className="text-2xl font-bold">{member.name}</h2>
-                        <span className="inline-block bg-orange-200 text-orange-800 text-sm font-semibold px-3 py-1 rounded-full mt-2">
+                        <span className="inline-block bg-primary-200 text-primary-800 text-sm font-semibold px-3 py-1 rounded-full mt-2">
                             {t(member.role, member.role === 'Sarpanch' ? 'સરપંચ' : 'તલાટી મંત્રી')}
                         </span>
                         <div className="text-left mt-4 space-y-2 text-gray-600">

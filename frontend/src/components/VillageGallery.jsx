@@ -43,8 +43,8 @@ const VillageGallery = ({ images = [] }) => {
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
-                        <Images className="w-5 h-5 text-orange-500" />
-                        <span className="text-xs font-bold tracking-widest text-orange-500 uppercase">
+                        <Images className="w-5 h-5 text-primary-500" />
+                        <span className="text-xs font-bold tracking-widest text-primary-500 uppercase">
                             {t('Photo Gallery', 'ફોટો ગેલેરી')}
                         </span>
                     </div>
@@ -69,7 +69,7 @@ const VillageGallery = ({ images = [] }) => {
                     <button
                         key={i}
                         onClick={() => setLightbox(i)}
-                        className="group relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-100 shadow-md hover:shadow-xl transition-shadow duration-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
+                        className="group relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-100 shadow-md hover:shadow-xl transition-shadow duration-300 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2"
                         aria-label={`${t('View photo', 'ફોટો જુઓ')} ${i + 1}`}
                     >
                         <img
@@ -93,7 +93,7 @@ const VillageGallery = ({ images = [] }) => {
                             </p>
                         </div>
                         {/* Orange accent corner */}
-                        <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-orange-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-primary-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     </button>
                 ))}
             </div>
@@ -160,7 +160,7 @@ const VillageGallery = ({ images = [] }) => {
                                 onClick={(e) => { e.stopPropagation(); setLightbox(i); }}
                                 className={`rounded-full transition-all duration-200 ${
                                     i === lightbox
-                                        ? 'w-6 h-2 bg-orange-400'
+                                        ? 'w-6 h-2 bg-primary-400'
                                         : 'w-2 h-2 bg-white/30 hover:bg-white/60'
                                 }`}
                                 aria-label={`${t('Photo', 'ફોટો')} ${i + 1}`}

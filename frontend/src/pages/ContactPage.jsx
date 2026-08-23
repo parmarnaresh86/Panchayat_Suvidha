@@ -96,7 +96,7 @@ const ContactPage = () => {
                         <button 
                             type="submit" 
                             disabled={submitting}
-                            className="bg-orange-600 text-white px-5 py-3 rounded-xl font-semibold hover:bg-orange-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-primary-600 text-white px-5 py-3 rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {submitting ? t('Sending...', 'મોકલી રહ્યું છે...') : t('Send Message', 'સંદેશ મોકલો')}
                         </button>

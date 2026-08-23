@@ -11,6 +11,8 @@ vendor/
 # Databases
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 
 # Laravel
 /panchayat-laravel/storage/*.key

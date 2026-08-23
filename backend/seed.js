@@ -17,8 +17,9 @@ const seedDatabase = async () => {
             DELETE FROM Village;
         `);
 
-        // 2. Insert Village
+        // 2. Insert Village (tenant #1 — sayla.panchayatsuvidha.in)
         const villageResult = await pool.request()
+            .input('slug', sql.NVarChar, 'sayla')
             .input('name', sql.NVarChar, 'Sayla')
             .input('taluka', sql.NVarChar, 'Sayla')
             .input('district', sql.NVarChar, 'Surendranagar')
@@ -29,11 +30,11 @@ const seedDatabase = async () => {
             .input('history_en', sql.NVarChar, 'Sayla was historically a princely state in the Kathiawar region. It has a long history of traditional craftsmanship and agriculture. The village is known for its beautiful temples and ancient architecture.')
             .input('history_gu', sql.NVarChar, 'સાયલા ઐતિહાસિક રીતે કાઠિયાવાડ વિસ્તારમાં એક રજવાડું હતું. તે પરંપરાગત હસ્તકલા અને ખેતીનો લાંબો ઇતિહાસ ધરાવે છે. ગામ તેના સુંદર મંદિરો અને પ્રાચીન સ્થાપત્ય માટે જાણીતું છે.')
             .query(`
-                INSERT INTO Village (name, taluka, district, state, area, total_households, description, history_en, history_gu)
-                VALUES (@name, @taluka, @district, @state, @area, @total_households, @description, @history_en, @history_gu);
-                SELECT SCOPE_IDENTITY() AS id;
+                INSERT INTO Village (slug, name, taluka, district, state, area, total_households, description, history_en, history_gu)
+                VALUES (@slug, @name, @taluka, @district, @state, @area, @total_households, @description, @history_en, @history_gu);
+                SELECT last_insert_rowid() AS id;
             `);
-        
+
         const villageId = villageResult.recordset[0].id;
 
         // 3. Insert Images
@@ -167,16 +168,18 @@ const seedDatabase = async () => {
 
         for (const service of services) {
             await pool.request()
+                .input('vId', sql.Int, villageId)
                 .input('id', sql.NVarChar(100), service.id)
                 .input('title', sql.NVarChar(255), service.title)
                 .input('guTitle', sql.NVarChar(255), service.guTitle)
                 .input('cardTo', sql.NVarChar(500), service.cardTo)
                 .input('display_order', sql.Int, service.display_order)
-                .query('INSERT INTO Services (id, title, guTitle, cardTo, display_order) VALUES (@id, @title, @guTitle, @cardTo, @display_order)');
+                .query('INSERT INTO Services (village_id, id, title, guTitle, cardTo, display_order) VALUES (@vId, @id, @title, @guTitle, @cardTo, @display_order)');
 
             for (let j = 0; j < service.items.length; j++) {
                 const item = service.items[j];
                 await pool.request()
+                    .input('vId', sql.Int, villageId)
                     .input('id', sql.NVarChar(100), item.id)
                     .input('service_id', sql.NVarChar(100), service.id)
                     .input('label', sql.NVarChar(500), item.label)
@@ -191,11 +194,41 @@ const seedDatabase = async () => {
                     .input('helpline', sql.NVarChar(500), item.helpline)
                     .input('officialLink', sql.NVarChar(500), item.officialLink)
                     .input('display_order', sql.Int, j)
-                    .query('INSERT INTO ServiceItems (id, service_id, label, to_path, department, eligibility, description, documents, [procedure], fees, contact, helpline, officialLink, display_order) VALUES (@id, @service_id, @label, @to_path, @department, @eligibility, @description, @documents, @procedure, @fees, @contact, @helpline, @officialLink, @display_order)');
+                    .query('INSERT INTO ServiceItems (village_id, id, service_id, label, to_path, department, eligibility, description, documents, [procedure], fees, contact, helpline, officialLink, display_order) VALUES (@vId, @id, @service_id, @label, @to_path, @department, @eligibility, @description, @documents, @procedure, @fees, @contact, @helpline, @officialLink, @display_order)');
             }
         }
 
-        console.log('Database seeded successfully!');
+        // 9. Insert a second, mostly-empty village (tenant #2) to prove
+        // multi-tenant isolation — demo.panchayatsuvidha.in.
+        const demoResult = await pool.request()
+            .input('slug', sql.NVarChar, 'demo')
+            .input('name', sql.NVarChar, 'Demo Village')
+            .input('taluka', sql.NVarChar, 'Demo Taluka')
+            .input('district', sql.NVarChar, 'Demo District')
+            .input('state', sql.NVarChar, 'Gujarat')
+            .input('area', sql.NVarChar, '')
+            .input('total_households', sql.NVarChar, '')
+            .input('description', sql.NVarChar, 'A freshly created village site — ready for the admin to fill in.')
+            .input('history_en', sql.NVarChar, '')
+            .input('history_gu', sql.NVarChar, '')
+            .query(`
+                INSERT INTO Village (slug, name, taluka, district, state, area, total_households, description, history_en, history_gu)
+                VALUES (@slug, @name, @taluka, @district, @state, @area, @total_households, @description, @history_en, @history_gu);
+                SELECT last_insert_rowid() AS id;
+            `);
+        const demoVillageId = demoResult.recordset[0].id;
+
+        await pool.request()
+            .input('vId', sql.Int, demoVillageId)
+            .input('role', sql.NVarChar, 'Sarpanch')
+            .input('name', sql.NVarChar, 'Demo Sarpanch')
+            .input('email', sql.NVarChar, 'sarpanch@demo.example.com')
+            .input('mobile', sql.NVarChar, '9999999999')
+            .input('addr', sql.NVarChar, 'Demo Village Panchayat Office')
+            .input('desc', sql.NVarChar, 'Elected Sarpanch of Demo Village.')
+            .query('INSERT INTO PanchayatMembers (village_id, role, name, email, mobile, address, description) VALUES (@vId, @role, @name, @email, @mobile, @addr, @desc)');
+
+        console.log(`Database seeded successfully! Villages: sayla (id=${villageId}), demo (id=${demoVillageId})`);
         process.exit(0);
     } catch (err) {
         console.error('Seeding Failed:', err);

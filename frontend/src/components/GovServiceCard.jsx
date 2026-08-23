@@ -21,7 +21,7 @@ const GovServiceCard = ({ icon: Icon, title, description, actionText, url, isDow
             }}
         >
             <div className="flex items-center gap-3 mb-4">
-                {Icon && <Icon className="text-3xl text-orange-500" />}
+                {Icon && <Icon className="text-3xl text-primary-500" />}
                 <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
             </div>
             <p className="text-sm text-gray-600 mb-4 flex-1">{description}</p>
@@ -32,7 +32,7 @@ const GovServiceCard = ({ icon: Icon, title, description, actionText, url, isDow
                         e.stopPropagation();
                         handleClick();
                     }}
-                    className="mt-4 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition duration-300"
+                    className="mt-4 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition duration-300"
                 >
                     {actionText || (isDownload ? 'Download' : 'Visit')}
                 </button>

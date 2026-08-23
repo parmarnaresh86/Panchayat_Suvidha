@@ -40,18 +40,18 @@ const Register = () => {
     return (
         <div className="min-h-screen flex items-center justify-center px-4">
             <Card className="w-full max-w-md">
-                <h1 className="text-3xl font-bold mb-6 text-center text-orange-600">User Registration</h1>
+                <h1 className="text-3xl font-bold mb-6 text-center text-primary-600">User Registration</h1>
                 <div className="flex mb-6 bg-gray-100 p-1 rounded-lg">
                     <button 
                         onClick={() => setRole('user')}
-                        className={`flex-1 py-2 rounded-md transition-all ${role === 'user' ? 'bg-white shadow-sm text-orange-600 font-bold' : 'text-gray-500'}`}
+                        className={`flex-1 py-2 rounded-md transition-all ${role === 'user' ? 'bg-white shadow-sm text-primary-600 font-bold' : 'text-gray-500'}`}
                         type="button"
                     >
                         User
                     </button>
                     <button 
                         onClick={() => setRole('admin')}
-                        className={`flex-1 py-2 rounded-md transition-all ${role === 'admin' ? 'bg-white shadow-sm text-orange-600 font-bold' : 'text-gray-500'}`}
+                        className={`flex-1 py-2 rounded-md transition-all ${role === 'admin' ? 'bg-white shadow-sm text-primary-600 font-bold' : 'text-gray-500'}`}
                         type="button"
                     >
                         Admin
@@ -111,12 +111,12 @@ const Register = () => {
                             />
                         </div>
                     )}
-                    <Button type="submit" disabled={registering} className="bg-orange-500 hover:bg-orange-600">
+                    <Button type="submit" disabled={registering} className="bg-primary-500 hover:bg-primary-600">
                         {registering ? 'Registering...' : 'Register'}
                     </Button>
                 </form>
                 <p className="mt-6 text-center text-gray-600">
-                    Already have an account? <a href="/login" className="text-orange-600 font-semibold hover:underline">Login</a>
+                    Already have an account? <a href="/login" className="text-primary-600 font-semibold hover:underline">Login</a>
                 </p>
             </Card>
         </div>

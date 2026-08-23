@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import DevVillageSwitcher from './components/DevVillageSwitcher';
 import VillageProfile from './pages/VillageProfile';
 import PanchayatDetails from './pages/PanchayatDetails';
 import Login from './pages/Login';
@@ -15,6 +16,9 @@ import StaffAttendancePage from './pages/StaffAttendancePage';
 const ServicesPage  = lazy(() => import('./pages/ServicesPage'));
 const ContactPage   = lazy(() => import('./pages/ContactPage'));
 const PublishedPage = lazy(() => import('./pages/PublishedPage'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const BusinessDirectoryPage = lazy(() => import('./pages/BusinessDirectoryPage'));
+const BusinessDetailPage = lazy(() => import('./pages/BusinessDetailPage'));
 
 // Requires any login (admin or user)
 const AuthRoute = ({ children }) => {
@@ -43,7 +47,7 @@ const NotFoundPage = () => (
         <div>
             <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
             <p className="text-gray-600">We couldn't find the page you're looking for.</p>
-            <a href="/" className="mt-4 inline-block text-orange-600 font-semibold hover:underline">Go back home</a>
+            <a href="/" className="mt-4 inline-block text-primary-600 font-semibold hover:underline">Go back home</a>
         </div>
     </div>
 );
@@ -51,6 +55,7 @@ const NotFoundPage = () => (
 function AppContent() {
     const location = useLocation();
     const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+    const isSuperAdminPage = location.pathname.startsWith('/super-admin');
 
     return (
         <div className="bg-linear-to-b from-gray-50 to-white min-h-screen">
@@ -63,27 +68,36 @@ function AppContent() {
                         </span>
                     </div>
                 </div>
-            ) : (
+            ) : !isSuperAdminPage && (
                 <Navbar />
             )}
-            
+
             <main className={isAuthPage ? "" : "pt-4"}>
                 <Suspense fallback={<div className="text-center p-10">Loading page...</div>}>
                     <Routes>
-                        {/* Public pages — require login */}
-                        <Route path="/"        element={<AuthRoute><VillageProfile /></AuthRoute>} />
-                        <Route path="/panchayat" element={<AuthRoute><PanchayatDetails /></AuthRoute>} />
-                        <Route path="/services"  element={<AuthRoute><ServicesPage /></AuthRoute>} />
-                        <Route path="/contact"   element={<AuthRoute><ContactPage /></AuthRoute>} />
+                        {/* Public pages — viewable by anyone, no login required.
+                            Any edit/add/update UI on these pages self-gates on
+                            isAdmin (see AuthContext) rather than the route. */}
+                        <Route path="/"        element={<VillageProfile />} />
+                        <Route path="/panchayat" element={<PanchayatDetails />} />
+                        <Route path="/services"  element={<ServicesPage />} />
+                        <Route path="/contact"   element={<ContactPage />} />
                         {/* Specific routes must come before dynamic param routes */}
-                        <Route path="/services/admin/form-download-center" element={<AuthRoute><FormDownloadPage /></AuthRoute>} />
+                        <Route path="/services/admin/form-download-center" element={<FormDownloadPage />} />
+                        {/* Marking attendance is an update action, so this one stays behind login */}
                         <Route path="/admin/staff-attendance"    element={<AuthRoute><StaffAttendancePage /></AuthRoute>} />
-                        <Route path="/services/:serviceId"       element={<AuthRoute><ServiceCategoryPage /></AuthRoute>} />
-                        <Route path="/services/:serviceId/:itemId" element={<AuthRoute><ServiceItemPage /></AuthRoute>} />
-                        <Route path="/p/:slug"  element={<AuthRoute><PublishedPage /></AuthRoute>} />
+                        <Route path="/services/:serviceId"       element={<ServiceCategoryPage />} />
+                        <Route path="/services/:serviceId/:itemId" element={<ServiceItemPage />} />
+                        <Route path="/p/:slug"  element={<PublishedPage />} />
+                        <Route path="/business" element={<BusinessDirectoryPage />} />
+                        <Route path="/business/:slug" element={<BusinessDetailPage />} />
 
                         {/* Admin only */}
                         <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+
+                        {/* Platform super-admin — creates/manages villages themselves.
+                            Its own separate login, not tied to village admin auth. */}
+                        <Route path="/super-admin" element={<SuperAdminDashboard />} />
 
                         {/* Auth pages — redirect away if already logged in */}
                         <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
@@ -93,7 +107,8 @@ function AppContent() {
                     </Routes>
                 </Suspense>
             </main>
-            {!isAuthPage && <Footer />}
+            {!isAuthPage && !isSuperAdminPage && <Footer />}
+            {!isSuperAdminPage && <DevVillageSwitcher />}
         </div>
     );
 }

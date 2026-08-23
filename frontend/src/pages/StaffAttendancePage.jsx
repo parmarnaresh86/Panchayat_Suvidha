@@ -163,7 +163,7 @@ const StaffAttendancePage = () => {
                 </Card>
                 <Card className="p-4">
                     <div className="text-xs uppercase text-gray-500">Late Entries</div>
-                    <div className="text-3xl font-bold text-orange-600">{summaryStats.lateEntries}</div>
+                    <div className="text-3xl font-bold text-primary-600">{summaryStats.lateEntries}</div>
                 </Card>
             </div>
 

@@ -32,9 +32,9 @@ const midAds = [
         cta: 'Contact',
         url: '#',
         icon: '🛒',
-        color: 'border-orange-200 bg-orange-50',
-        tagColor: 'bg-orange-100 text-orange-700',
-        btnColor: 'bg-orange-500 hover:bg-orange-600',
+        color: 'border-primary-200 bg-primary-50',
+        tagColor: 'bg-primary-100 text-primary-700',
+        btnColor: 'bg-primary-500 hover:bg-primary-600',
     },
 ];
 

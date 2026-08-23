@@ -23,8 +23,8 @@ const FacilitiesModulesAdmin = () => {
                             onClick={() => setActiveModule(tab.id)}
                             className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                                 activeModule === tab.id
-                                    ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
-                                    : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600'
+                                    ? 'bg-primary-500 border-primary-500 text-white shadow-sm'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600'
                             }`}
                         >
                             {tab.label}

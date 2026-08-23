@@ -21,7 +21,7 @@ const FormDownloadPage = () => {
         <div className="container mx-auto p-6">
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-bold">ફોર્મ ડાઉનલોડ સેન્ટર</h1>
-                <Link to="/services" className="text-orange-500 hover:text-orange-700 font-semibold">
+                <Link to="/services" className="text-primary-500 hover:text-primary-700 font-semibold">
                     ← Back to Services
                 </Link>
             </div>

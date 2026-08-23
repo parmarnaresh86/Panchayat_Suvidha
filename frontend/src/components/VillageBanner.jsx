@@ -36,8 +36,8 @@ const VillageBanner = ({ villageName, taluka, district }) => {
             <div className="absolute -bottom-20 -right-20 w-96 h-96 rounded-full pointer-events-none opacity-15 blur-3xl"
                 style={{ background: 'radial-gradient(circle, #f97316, transparent 70%)' }} />
             {/* Floating rings */}
-            <div className="absolute top-6 left-6 w-28 h-28 rounded-full border border-orange-400/10 animate-float pointer-events-none" />
-            <div className="absolute bottom-20 right-10 w-16 h-16 rounded-full border border-orange-300/10 animate-float pointer-events-none" style={{ animationDelay: '2s' }} />
+            <div className="absolute top-6 left-6 w-28 h-28 rounded-full border border-primary-400/10 animate-float pointer-events-none" />
+            <div className="absolute bottom-20 right-10 w-16 h-16 rounded-full border border-primary-300/10 animate-float pointer-events-none" style={{ animationDelay: '2s' }} />
             {/* Inset border */}
             <div className="absolute inset-3 rounded-2xl border border-white/10 pointer-events-none" />
 
@@ -45,9 +45,9 @@ const VillageBanner = ({ villageName, taluka, district }) => {
             <div className="relative z-10 flex flex-col items-center justify-center text-center flex-1 px-6 sm:px-16 py-6 gap-3">
 
                 {/* Badge */}
-                <div className="animate-fade-up inline-flex items-center gap-2 rounded-full px-4 py-1.5 border border-orange-400/30 bg-orange-500/10 backdrop-blur-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse flex-shrink-0" />
-                    <span className="font-gujarati text-orange-300 text-xs font-semibold tracking-[0.2em] uppercase">
+                <div className="animate-fade-up inline-flex items-center gap-2 rounded-full px-4 py-1.5 border border-primary-400/30 bg-primary-500/10 backdrop-blur-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse flex-shrink-0" />
+                    <span className="font-gujarati text-primary-300 text-xs font-semibold tracking-[0.2em] uppercase">
                         {t('Digital Gram Panchayat', 'ડિજિટલ ગ્રામ પંચાયત')}
                     </span>
                 </div>
@@ -66,7 +66,7 @@ const VillageBanner = ({ villageName, taluka, district }) => {
 
                 {/* Gujarati subtitle */}
                 <p
-                    className="font-gujarati animate-fade-up-delay2 font-bold text-orange-300 leading-tight"
+                    className="font-gujarati animate-fade-up-delay2 font-bold text-primary-300 leading-tight"
                     style={{
                         fontSize: 'clamp(1.3rem, 3.5vw, 2.4rem)',
                         textShadow: '0 4px 24px rgba(0,0,0,0.6)',
@@ -80,9 +80,9 @@ const VillageBanner = ({ villageName, taluka, district }) => {
                 {/* Divider */}
                 <div className="animate-fade-up-delay2 flex items-center gap-3" style={{ width: '160px', margin: '0.5rem 0' }}>
                     <div className="flex-1 h-px" style={{ background: 'linear-gradient(to right, transparent, rgba(251,146,60,0.6))' }} />
-                    <div className="w-1.5 h-1.5 rounded-full bg-orange-400/70" />
-                    <div className="w-2 h-2 rounded-full bg-orange-500 shadow-md shadow-orange-500/60" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-orange-400/70" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary-400/70" />
+                    <div className="w-2 h-2 rounded-full bg-primary-500 shadow-md shadow-primary-500/60" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary-400/70" />
                     <div className="flex-1 h-px" style={{ background: 'linear-gradient(to left, transparent, rgba(251,146,60,0.6))' }} />
                 </div>
 
@@ -101,22 +101,22 @@ const VillageBanner = ({ villageName, taluka, district }) => {
                             const el = document.getElementById('village-profile-details');
                             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }}
-                        className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 transition-all duration-200 text-sm"
+                        className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 active:scale-95 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 transition-all duration-200 text-sm"
                     >
                         {t('Village Profile', 'ગ્રામ પ્રોફાઇલ')}
                         <ArrowRight className="w-4 h-4" />
                     </button>
                     <button
                         onClick={() => navigate('/services')}
-                        className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/18 active:scale-95 backdrop-blur-md border border-white/20 hover:border-orange-400/50 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 text-sm"
+                        className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/18 active:scale-95 backdrop-blur-md border border-white/20 hover:border-primary-400/50 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 text-sm"
                     >
                         {t('Explore Services', 'સેવાઓ જુઓ')}
                     </button>
                     <button
                         onClick={() => navigate('/contact')}
-                        className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/18 active:scale-95 backdrop-blur-md border border-white/20 hover:border-orange-400/50 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 text-sm"
+                        className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/18 active:scale-95 backdrop-blur-md border border-white/20 hover:border-primary-400/50 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 text-sm"
                     >
-                        <Phone className="w-4 h-4 text-orange-300" />
+                        <Phone className="w-4 h-4 text-primary-300" />
                         {t('Contact Panchayat', 'સંપર્ક')}
                     </button>
                 </div>
@@ -134,7 +134,7 @@ const VillageBanner = ({ villageName, taluka, district }) => {
                                 ${i === 3 ? 'border-t sm:border-t-0 border-white/10' : ''}
                             `}
                         >
-                            <Icon className="w-3.5 h-3.5 text-orange-400" />
+                            <Icon className="w-3.5 h-3.5 text-primary-400" />
                             <span className="text-white font-bold text-sm leading-tight">{value}</span>
                             <span className="font-gujarati text-white/45 text-[10px] tracking-widest uppercase">
                                 {gu ? guLabel : en}

@@ -8,10 +8,12 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
     Plus, Trash2, Edit2, Eye, Globe, FileText, GripVertical,
-    ChevronLeft, Save, ExternalLink, X, Check,
+    ChevronLeft, Save, ExternalLink, X, Check, Home,
 } from 'lucide-react';
 import axios from '../api/axios';
 import BlockRenderer from '../components/pagebuilder/BlockRenderer';
+import { DEFAULT_HOME_BLOCKS } from '../components/pagebuilder/defaultHomeBlocks';
+import { GujaratiInput } from '../components/GujaratiInput';
 
 // ── Block palette definition ──────────────────────────────────
 const PALETTE = [
@@ -23,6 +25,22 @@ const PALETTE = [
     { type: 'divider',  label: 'Divider',  icon: '—' },
     { type: 'spacer',   label: 'Spacer',   icon: '↕' },
     { type: 'alert',    label: 'Alert',    icon: '⚠' },
+    { type: 'html',     label: 'HTML/Embed', icon: '</>' },
+];
+
+// Village widgets — pull their own live data (village info, census,
+// panchayat members, contact info) for the current tenant. Most only need
+// an optional bilingual heading override, not free-form content.
+const VILLAGE_PALETTE = [
+    { type: 'village-banner',        label: 'Hero Banner',        icon: '🏔' },
+    { type: 'village-gallery',       label: 'Photo Gallery',      icon: '🖼️' },
+    { type: 'panchayat-members',     label: 'Panchayat Members',  icon: '🧑‍⚖️' },
+    { type: 'village-map',           label: 'Village Map',        icon: '🗺️' },
+    { type: 'village-history',       label: 'History & Pride',    icon: '🏛️' },
+    { type: 'village-achievements',  label: 'Achievements',       icon: '🏆' },
+    { type: 'special-personalities', label: 'Notable Persons',    icon: '🌟' },
+    { type: 'contact-info',          label: 'Quick Contact',      icon: '📞' },
+    { type: 'census-table',          label: 'Census Table',       icon: '📊' },
 ];
 
 const defaultProps = (type) => {
@@ -35,6 +53,17 @@ const defaultProps = (type) => {
         case 'divider':  return { color: '#e5e7eb', thickness: 1 };
         case 'spacer':   return { height: 32 };
         case 'alert':    return { text: 'Important notice', bg: '#fff7ed', border: '#fed7aa', color: '#9a3412' };
+        case 'html':     return { html: '' };
+        case 'village-map':          return { headingEn: 'Explore Our Village', headingGu: 'અમારું ગામ જુઓ' };
+        case 'panchayat-members':    return { headingEn: 'Panchayat Members', headingGu: 'પંચાયતના સભ્યો' };
+        case 'village-achievements': return { headingEn: 'Achievements', headingGu: 'ગામની સિદ્ધિઓ' };
+        case 'special-personalities': return { headingEn: 'Special Personalities', headingGu: 'વિશેષ વ્યક્તિઓ' };
+        case 'census-table':         return { headingEn: 'Census Data', headingGu: 'વસ્તી ગણતરી ડેટા', year: '2021' };
+        case 'village-banner':
+        case 'village-gallery':
+        case 'village-history':
+        case 'contact-info':
+            return {};
         default:         return {};
     }
 };
@@ -52,7 +81,7 @@ const SortableBlock = ({ block, selected, onSelect, onDelete, preview }) => {
             style={style}
             onClick={() => !preview && onSelect(block.id)}
             className={`group relative rounded-xl border-2 transition-all duration-150 cursor-pointer
-                ${selected && !preview ? 'border-orange-400 shadow-md shadow-orange-100' : 'border-transparent hover:border-gray-200'}
+                ${selected && !preview ? 'border-primary-400 shadow-md shadow-primary-100' : 'border-transparent hover:border-gray-200'}
                 ${preview ? 'border-transparent cursor-default' : ''}
             `}
         >
@@ -93,29 +122,36 @@ const PropsEditor = ({ block, onChange }) => {
     const field = (label, key, type = 'text', extra = {}) => (
         <div key={key} className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>
-            {type === 'textarea' ? (
+            {key.endsWith('Gu') ? (
+                <GujaratiInput
+                    value={p[key] ?? ''}
+                    onChange={(val) => set(key, val)}
+                    placeholder="Type phonetically, e.g. 'namaste'"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300"
+                />
+            ) : type === 'textarea' ? (
                 <textarea
-                    rows={3}
+                    rows={extra.rows || 3}
                     value={p[key] ?? ''}
                     onChange={e => set(key, e.target.value)}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none"
+                    className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 resize-none ${extra.mono ? 'font-mono' : ''}`}
                 />
             ) : type === 'select' ? (
                 <select
                     value={p[key] ?? ''}
                     onChange={e => set(key, e.target.value)}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300"
                 >
                     {extra.options.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
             ) : type === 'checkbox' ? (
-                <input type="checkbox" checked={!!p[key]} onChange={e => set(key, e.target.checked)} className="accent-orange-500" />
+                <input type="checkbox" checked={!!p[key]} onChange={e => set(key, e.target.checked)} className="accent-primary-500" />
             ) : (
                 <input
                     type={type}
                     value={p[key] ?? ''}
                     onChange={e => set(key, type === 'number' ? Number(e.target.value) : e.target.value)}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300"
                 />
             )}
         </div>
@@ -132,14 +168,34 @@ const PropsEditor = ({ block, onChange }) => {
         divider: [field('Color', 'color', 'color'), field('Thickness (px)', 'thickness', 'number')],
         spacer:  [field('Height (px)', 'height', 'number')],
         alert:   [field('Message', 'text', 'textarea'), field('Background', 'bg', 'color'), field('Border Color', 'border', 'color'), field('Text Color', 'color', 'color')],
+        html: [
+            field('HTML Code', 'html', 'textarea', { rows: 10, mono: true }),
+            <p key="html-warning" className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2">
+                ⚠️ This renders directly on your site, exactly as pasted. Only paste code from sources you trust (e.g. a Google Maps embed, YouTube embed).
+            </p>,
+        ],
+        'village-map':           [field('Heading (English)', 'headingEn'), field('Heading (Gujarati)', 'headingGu')],
+        'panchayat-members':     [field('Heading (English)', 'headingEn'), field('Heading (Gujarati)', 'headingGu')],
+        'village-achievements':  [field('Heading (English)', 'headingEn'), field('Heading (Gujarati)', 'headingGu')],
+        'special-personalities': [field('Heading (English)', 'headingEn'), field('Heading (Gujarati)', 'headingGu')],
+        'census-table':          [field('Heading (English)', 'headingEn'), field('Heading (Gujarati)', 'headingGu'), field('Year', 'year')],
+        'village-banner':  [],
+        'village-gallery': [],
+        'village-history': [],
+        'contact-info':    [],
     };
+
+    const blockFields = fields[block.type] || [];
 
     return (
         <div className="p-4 space-y-4 overflow-y-auto h-full">
             <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <span className="text-xs font-bold tracking-widest text-orange-500 uppercase">{block.type}</span>
+                <span className="text-xs font-bold tracking-widest text-primary-500 uppercase">{block.type}</span>
             </div>
-            {(fields[block.type] || []).map((f, i) => <div key={i}>{f}</div>)}
+            {blockFields.length === 0 && (
+                <p className="text-sm text-gray-400">This widget pulls its content from the village's live data — edit it under Admin → Village Profile / Contact.</p>
+            )}
+            {blockFields.map((f, i) => <div key={i}>{f}</div>)}
         </div>
     );
 };
@@ -154,22 +210,7 @@ const PageBuilderAdmin = () => {
     const [preview, setPreview] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showNewForm, setShowNewForm] = useState(false);
-    const [newForm, setNewForm] = useState({ title: '', slug: '', showInNav: false });
-
-    // Navbar pages stored in localStorage so Navbar reads them without a DB call
-    const syncNavPages = (allPages) => {
-        const navPages = allPages
-            .filter(p => p.status === 'published' && p.showInNav)
-            .map(p => ({ title: p.title, slug: p.slug }));
-        localStorage.setItem('navbarPages', JSON.stringify(navPages));
-        window.dispatchEvent(new Event('navbar-pages-change'));
-    };
-
-    const toggleNavbar = (pageId, val) => {
-        const updated = pages.map(p => p.id === pageId ? { ...p, showInNav: val } : p);
-        setPages(updated);
-        syncNavPages(updated);
-    };
+    const [newForm, setNewForm] = useState({ title: '', slug: '' });
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -178,12 +219,7 @@ const PageBuilderAdmin = () => {
     const fetchPages = async () => {
         try {
             const res = await axios.get('/pages');
-            // Restore showInNav from localStorage
-            const navSlugs = new Set(
-                JSON.parse(localStorage.getItem('navbarPages') || '[]').map(p => p.slug)
-            );
-            const withNav = res.data.map(p => ({ ...p, showInNav: navSlugs.has(p.slug) }));
-            setPages(withNav);
+            setPages(res.data);
         } catch { /* DB may not have table yet */ }
     };
 
@@ -201,16 +237,32 @@ const PageBuilderAdmin = () => {
         setView('editor');
     };
 
+    // The homepage ('/' route) is just a page with slug 'home' — pinned to
+    // the top of the list. Create it on first edit if it doesn't exist yet.
+    const homePage = pages.find(p => p.slug === 'home');
+    const openHomeEditor = async () => {
+        if (homePage) return openEditor(homePage);
+        try {
+            const res = await axios.post('/pages', { title: 'Home', slug: 'home', content_json: DEFAULT_HOME_BLOCKS, status: 'published' });
+            setPages(prev => [res.data, ...prev]);
+            setEditingPage(res.data);
+            setBlocks(DEFAULT_HOME_BLOCKS);
+            setSelectedId(null);
+            setPreview(false);
+            setView('editor');
+        } catch (e) {
+            alert(e.response?.data?.error || 'Failed to create home page');
+        }
+    };
+
     const createPage = async () => {
         if (!newForm.title || !newForm.slug) return;
         try {
             const res = await axios.post('/pages', { title: newForm.title, slug: newForm.slug, content_json: [], status: 'draft' });
-            const newPage = { ...res.data, showInNav: newForm.showInNav };
-            const updated = [newPage, ...pages];
-            setPages(updated);
-            syncNavPages(updated);
+            const newPage = res.data;
+            setPages([newPage, ...pages]);
             setShowNewForm(false);
-            setNewForm({ title: '', slug: '', showInNav: false });
+            setNewForm({ title: '', slug: '' });
             openEditor(newPage);
         } catch (e) {
             alert(e.response?.data?.error || 'Failed to create page');
@@ -234,9 +286,7 @@ const PageBuilderAdmin = () => {
             });
             const updatedPage = { ...editingPage, status: status || editingPage.status };
             setEditingPage(updatedPage);
-            const updatedPages = pages.map(p => p.id === editingPage.id ? { ...p, ...updatedPage } : p);
-            setPages(updatedPages);
-            syncNavPages(updatedPages);
+            setPages(pages.map(p => p.id === editingPage.id ? { ...p, ...updatedPage } : p));
         } catch (e) {
             alert('Save failed');
         } finally { setSaving(false); }
@@ -279,7 +329,7 @@ const PageBuilderAdmin = () => {
                 </div>
                 <button
                     onClick={() => setShowNewForm(true)}
-                    className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
+                    className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
                 >
                     <Plus className="w-4 h-4" /> New Page
                 </button>
@@ -300,7 +350,7 @@ const PageBuilderAdmin = () => {
                                     const slug = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
                                     setNewForm({ title, slug });
                                 }}
-                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
                             />
                         </div>
                         <div>
@@ -316,17 +366,9 @@ const PageBuilderAdmin = () => {
                             </div>
                         </div>
                     </div>
-                    {/* Show in Navbar toggle */}
-                    <label className="flex items-center gap-3 cursor-pointer w-fit">
-                        <div className={`relative w-10 h-5 rounded-full transition-colors ${newForm.showInNav ? 'bg-orange-500' : 'bg-gray-200'}`}
-                            onClick={() => setNewForm(f => ({ ...f, showInNav: !f.showInNav }))}>
-                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${newForm.showInNav ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                        </div>
-                        <span className="text-sm font-medium text-gray-700">Show in Navbar</span>
-                        <span className="text-xs text-gray-400">(visible to all users after publish)</span>
-                    </label>
+                    <p className="text-xs text-gray-400">To show this page in the menu, add it under Admin → Navigation once created.</p>
                     <div className="flex gap-3">
-                        <button onClick={createPage} className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors">
+                        <button onClick={createPage} className="bg-primary-500 hover:bg-primary-600 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors">
                             Create & Edit
                         </button>
                         <button onClick={() => setShowNewForm(false)} className="border border-gray-200 text-gray-600 px-5 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors">
@@ -336,18 +378,38 @@ const PageBuilderAdmin = () => {
                 </div>
             )}
 
+            {/* Home page — pinned, always shown, rendered at "/" instead of "/p/:slug" */}
+            <div className="bg-primary-50 border border-primary-200 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                    <Home className="w-5 h-5 text-primary-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                        <p className="font-semibold text-gray-800">Home Page</p>
+                        <p className="text-xs text-gray-500">/ — the site's front page</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                    {!homePage && <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">using defaults</span>}
+                    <button onClick={openHomeEditor} className="p-2 text-primary-500 hover:bg-primary-100 rounded-lg transition-colors">
+                        <Edit2 className="w-4 h-4" />
+                    </button>
+                    <a href="/" target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+                        <ExternalLink className="w-4 h-4" />
+                    </a>
+                </div>
+            </div>
+
             <div className="space-y-3">
-                {pages.length === 0 && (
+                {pages.filter(p => p.slug !== 'home').length === 0 && (
                     <div className="text-center py-16 text-gray-400">
                         <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                        <p className="font-medium">No pages yet</p>
+                        <p className="font-medium">No custom pages yet</p>
                         <p className="text-sm mt-1">Create your first page to get started</p>
                     </div>
                 )}
-                {pages.map(page => (
+                {pages.filter(p => p.slug !== 'home').map(page => (
                     <div key={page.id} className="bg-white border border-gray-100 rounded-2xl px-5 py-4 flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center gap-3 min-w-0">
-                            <FileText className="w-5 h-5 text-orange-400 flex-shrink-0" />
+                            <FileText className="w-5 h-5 text-primary-400 flex-shrink-0" />
                             <div className="min-w-0">
                                 <p className="font-semibold text-gray-800 truncate">{page.title}</p>
                                 <p className="text-xs text-gray-400">/p/{page.slug}</p>
@@ -357,17 +419,7 @@ const PageBuilderAdmin = () => {
                             <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${page.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                 {page.status}
                             </span>
-                            {/* Show in Navbar toggle */}
-                            <label className="flex items-center gap-1.5 cursor-pointer" title="Show in Navbar">
-                                <div
-                                    className={`relative w-8 h-4 rounded-full transition-colors ${page.showInNav && page.status === 'published' ? 'bg-orange-500' : 'bg-gray-200'}`}
-                                    onClick={() => toggleNavbar(page.id, !page.showInNav)}
-                                >
-                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${page.showInNav && page.status === 'published' ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                                </div>
-                                <span className="text-xs text-gray-500">Navbar</span>
-                            </label>
-                            <button onClick={() => openEditor(page)} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors">
+                            <button onClick={() => openEditor(page)} className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-colors">
                                 <Edit2 className="w-4 h-4" />
                             </button>
                             <a href={`/p/${page.slug}`} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
@@ -394,7 +446,7 @@ const PageBuilderAdmin = () => {
                     </button>
                     <div>
                         <p className="font-bold text-gray-800 text-sm leading-tight">{editingPage?.title}</p>
-                        <p className="text-xs text-gray-400">/p/{editingPage?.slug}</p>
+                        <p className="text-xs text-gray-400">{editingPage?.slug === 'home' ? '/' : `/p/${editingPage?.slug}`}</p>
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${editingPage?.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {editingPage?.status}
@@ -403,7 +455,7 @@ const PageBuilderAdmin = () => {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setPreview(p => !p)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${preview ? 'bg-orange-100 text-orange-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${preview ? 'bg-primary-100 text-primary-600' : 'text-gray-600 hover:bg-gray-100'}`}
                     >
                         <Eye className="w-4 h-4" /> {preview ? 'Editing' : 'Preview'}
                     </button>
@@ -417,7 +469,7 @@ const PageBuilderAdmin = () => {
                     <button
                         onClick={() => savePage('published')}
                         disabled={saving}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary-500 hover:bg-primary-600 text-white transition-colors shadow-sm"
                     >
                         <Globe className="w-4 h-4" /> {saving ? 'Publishing...' : 'Publish'}
                     </button>
@@ -427,14 +479,27 @@ const PageBuilderAdmin = () => {
             <div className="flex flex-1 overflow-hidden">
                 {/* Left: Block palette */}
                 {!preview && (
-                    <div className="w-48 bg-white border-r border-gray-100 flex-shrink-0 overflow-y-auto">
-                        <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase px-4 pt-4 pb-2">Blocks</p>
+                    <div className="w-52 bg-white border-r border-gray-100 flex-shrink-0 overflow-y-auto">
+                        <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase px-4 pt-4 pb-2">Village Widgets</p>
+                        <div className="px-3 pb-2 space-y-1">
+                            {VILLAGE_PALETTE.map(({ type, label, icon }) => (
+                                <button
+                                    key={type}
+                                    onClick={() => addBlock(type)}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 transition-colors text-left"
+                                >
+                                    <span className="text-base w-5 text-center">{icon}</span>
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase px-4 pt-3 pb-2 border-t border-gray-100">Basic Blocks</p>
                         <div className="px-3 pb-4 space-y-1">
                             {PALETTE.map(({ type, label, icon }) => (
                                 <button
                                     key={type}
                                     onClick={() => addBlock(type)}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors text-left"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 transition-colors text-left"
                                 >
                                     <span className="text-base w-5 text-center">{icon}</span>
                                     {label}

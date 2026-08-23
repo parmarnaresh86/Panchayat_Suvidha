@@ -5,6 +5,8 @@ const dotenv = require('dotenv');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { sql, poolPromise } = require('./db');
 const {
     getServices,
@@ -14,14 +16,34 @@ const {
     getEmploymentModule,
     updateEmploymentModule,
     getFacilitiesModule,
-    updateFacilitiesModule
+    updateFacilitiesModule,
+    getBusinesses,
+    getBusinessCategories,
+    getBusinessBySlug,
+    getBusinessById,
+    createBusiness,
+    updateBusiness,
+    deleteBusiness,
+    updateBusinessProducts,
+    getBusinessTabs,
+    getBusinessTabBySlug,
+    getBusinessTabById,
+    createBusinessTab,
+    updateBusinessTab,
+    deleteBusinessTab,
+    reorderBusinessTabs
 } = require('./db-helpers');
+const { provisionStarterContent } = require('./starter-content');
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password';
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const ADMIN_REGISTRATION_SECRET = process.env.ADMIN_REGISTRATION_SECRET || 'admin-secret';
+// Platform-level super-admin — manages the list of villages itself. Separate
+// from per-village admins (Users table), which are scoped to one village.
+const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME || 'superadmin';
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD || 'superadmin';
+const SUPER_ADMIN_TOKEN = 'super-admin-dummy-token';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -30,26 +52,97 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Ensure Users table exists for user registration/login
-const initializeDatabase = async () => {
-    try {
-        const pool = await poolPromise;
-        await pool.request().query(`
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Users' AND xtype='U')
-            CREATE TABLE Users (
-                id INT PRIMARY KEY IDENTITY(1,1),
-                username NVARCHAR(255) UNIQUE NOT NULL,
-                password NVARCHAR(255) NOT NULL,
-                email NVARCHAR(255),
-                role NVARCHAR(50) NOT NULL DEFAULT 'user'
-            );
-        `);
-        console.log('Users table ready');
-    } catch (err) {
-        console.error('Failed to initialize Users table:', err);
+// ── Tenant resolution ───────────────────────────────────────────
+// Every village site is one row in the Village table, identified by a
+// unique `slug` (its subdomain, e.g. 'sayla' for sayla.panchayatsuvidha.in).
+// In production the slug comes from the Host header's subdomain. Locally
+// (no real subdomains) it falls back to an X-Village-Slug header or a
+// ?village= query param, which the frontend sets from a dev village switcher.
+const TENANT_EXEMPT_PREFIXES = ['/super-admin', '/uploads'];
+
+function extractSlugFromHost(hostname) {
+    if (!hostname) return null;
+    const parts = hostname.split('.');
+    const isLocalHostLike = hostname === 'localhost' || hostname === '127.0.0.1' || parts[parts.length - 1] === 'localhost';
+    if (isLocalHostLike) {
+        // e.g. 'shayala.localhost' -> 'shayala'; plain 'localhost' -> none
+        return parts.length > 1 ? parts[0] : null;
     }
-};
-initializeDatabase();
+    // e.g. 'shayala.panchayatsuvidha.in' -> 'shayala'; 'panchayatsuvidha.in' -> none
+    return parts.length > 2 ? parts[0] : null;
+}
+
+async function resolveTenant(req, res, next) {
+    if (TENANT_EXEMPT_PREFIXES.some(prefix => req.path.startsWith(prefix))) {
+        return next();
+    }
+
+    try {
+        const slug = req.get('X-Village-Slug') || req.query.village || extractSlugFromHost(req.hostname);
+
+        if (!slug) {
+            return res.status(400).json({ error: 'Village not specified. Provide a subdomain, X-Village-Slug header, or ?village= query param.' });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('slug', sql.NVarChar, slug)
+            .query('SELECT * FROM Village WHERE slug = @slug AND is_active = 1');
+
+        const village = result.recordset[0];
+        if (!village) {
+            return res.status(404).json({ error: `Village '${slug}' not found or inactive` });
+        }
+
+        req.village = village;
+        next();
+    } catch (err) {
+        console.error('Tenant resolution failed:', err);
+        res.status(500).json({ error: 'Failed to resolve village' });
+    }
+}
+
+app.use(resolveTenant);
+
+function requireSuperAdmin(req, res, next) {
+    const authHeader = req.get('Authorization') || '';
+    const token = authHeader.replace('Bearer ', '');
+    if (token !== SUPER_ADMIN_TOKEN) {
+        return res.status(401).json({ error: 'Super-admin authentication required' });
+    }
+    next();
+}
+
+// Verifies the JWT issued by /auth/login and attaches the decoded payload
+// as req.user ({ id, username, role, villageId }).
+function requireAuth(req, res, next) {
+    const authHeader = req.get('Authorization') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) {
+        return res.status(401).json({ message: 'Authentication required' });
+    }
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+        next();
+    } catch {
+        return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+}
+
+// requireAuth + must be an admin of the exact village this request is
+// scoped to (req.village, resolved by resolveTenant) — a valid token from
+// village A can never write to village B, even by swapping the tenant header.
+function requireAdmin(req, res, next) {
+    requireAuth(req, res, () => {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Admin access required' });
+        }
+        if (req.user.villageId !== req.village.id) {
+            return res.status(403).json({ message: 'This account does not administer this village' });
+        }
+        next();
+    });
+}
 
 // Configure Multer for File Uploads
 const storage = multer.diskStorage({
@@ -64,106 +157,151 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Fallback dummy data
-const villageData = {
-    id: 1,
-    name: 'sayla',
-    taluka: 'Sayla',
-    district: 'Surendranagar',
-    state: 'Gujarat',
-    area: '658',
-    total_households: '165',
-    description: 'A historical and progressive village located in the Surendranagar district of Gujarat. Known for its rich heritage and community spirit.',
-    images: [
-        '/images/Loc_Sayla_1567329861.jpg',
-        '/images/sayla-gujarat-1.jpg',
-        '/images/Stepwell-Dhandhalpar-sayla.jpg'
-    ],
-    history: {
-        english: 'Sayla was historically a princely state in the Kathiawar region. It has a long history of traditional craftsmanship and agriculture. The village is known for its beautiful temples and ancient architecture.',
-        gujarati: 'સાયલા ઐતિહાસિક રીતે કાઠિયાવાડ વિસ્તારમાં એક રજવાડું હતું. તે પરંપરાગત હસ્તકલા અને ખેતીનો લાંબો ઇતિહાસ ધરાવે છે. ગામ તેના સુંદર મંદિરો અને પ્રાચીન સ્થાપત્ય માટે જાણીતું છે.'
-    },
-    special_persons: [
-        { name: 'Dr. Vikram Sarabhai (Sample)', achievement: 'Progressive Farmer', role: 'Community Leader' },
-        { name: 'Smt. Anuben Thakkar (Sample)', achievement: 'Social Worker', role: 'Educationist' }
-    ],
-    achievements: [
-        { title: 'Best Clean Village 2024', awarded_by: 'Gujarat Government' },
-        { title: 'Digital Village Award', awarded_by: 'District Panchayat' }
-    ]
-};
+function fileUrl(req, filename) {
+    return `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+}
 
-const censusData = [
-    { id: 1, village_id: 1, category: 'Total Population', total: 10000, male: 5200, female: 4800 },
-    { id: 4, village_id: 1, category: 'Literates', total: 7000, male: 4000, female: 3000 },
-    { id: 5, village_id: 1, category: 'Illiterates', total: 3000, male: 1200, female: 1800 },
-    { id: 6, village_id: 1, category: 'Workers', total: 4000, male: 3000, female: 1000 },
-    { id: 7, village_id: 1, category: 'Non-workers', total: 6000, male: 2200, female: 3800 },
-];
-
-const panchayatMembers = [
-    {
-        id: 1,
-        village_id: 1,
-        role: 'Sarpanch',
-        name: 'John Doe',
-        email: 'sarpanch@example.com',
-        mobile: '1234567890',
-        address: '123, Village Main Road',
-        description: 'Elected Sarpanch of the village.',
-        photo_url: ''
-    },
-    {
-        id: 2,
-        village_id: 1,
-        role: 'Secretary',
-        name: 'Jane Smith',
-        email: 'secretary@example.com',
-        mobile: '0987654321',
-        address: '456, Panchayat Office',
-        description: 'Appointed Secretary of the Panchayat.',
-        photo_url: ''
+// ── Super-admin: manage the list of villages (platform level) ──────
+app.post('/super-admin/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === SUPER_ADMIN_USERNAME && password === SUPER_ADMIN_PASSWORD) {
+        return res.json({ token: SUPER_ADMIN_TOKEN });
     }
-];
+    res.status(401).json({ message: 'Invalid super-admin credentials' });
+});
 
-// Public APIs
+app.get('/super-admin/villages', requireSuperAdmin, async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query('SELECT * FROM Village ORDER BY id DESC');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Live slug-availability check for the "New Village" wizard
+app.get('/super-admin/villages/check-slug/:slug', requireSuperAdmin, async (req, res) => {
+    try {
+        const slug = String(req.params.slug || '').toLowerCase();
+        const valid = /^[a-z0-9-]{2,50}$/.test(slug);
+        if (!valid) {
+            return res.json({ available: false, reason: 'Slug must be 2-50 characters: lowercase letters, numbers, and hyphens only.' });
+        }
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('slug', sql.NVarChar, slug)
+            .query('SELECT id FROM Village WHERE slug = @slug');
+        res.json({ available: result.recordset.length === 0 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+const VALID_THEMES = ['classic', 'modern-minimal', 'heritage'];
+
+app.post('/super-admin/villages', requireSuperAdmin, async (req, res) => {
+    try {
+        const { slug, name, taluka, district, state, area, total_households, description, theme } = req.body;
+        if (!slug || !name) {
+            return res.status(400).json({ error: 'slug and name are required' });
+        }
+        if (!/^[a-z0-9-]{2,50}$/.test(slug)) {
+            return res.status(400).json({ error: 'Slug must be 2-50 characters: lowercase letters, numbers, and hyphens only.' });
+        }
+        const finalTheme = VALID_THEMES.includes(theme) ? theme : 'classic';
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('slug', sql.NVarChar, slug)
+            .input('name', sql.NVarChar, name)
+            .input('theme', sql.NVarChar, finalTheme)
+            .input('taluka', sql.NVarChar, taluka ?? '')
+            .input('district', sql.NVarChar, district ?? '')
+            .input('state', sql.NVarChar, state ?? '')
+            .input('area', sql.NVarChar, area ?? '')
+            .input('households', sql.NVarChar, total_households ?? '')
+            .input('desc', sql.NVarChar, description ?? '')
+            .query(`
+                INSERT INTO Village (slug, name, theme, taluka, district, state, area, total_households, description)
+                VALUES (@slug, @name, @theme, @taluka, @district, @state, @area, @households, @desc);
+                SELECT * FROM Village WHERE id = last_insert_rowid();
+            `);
+
+        const village = result.recordset[0];
+        const { adminUsername, adminPassword } = await provisionStarterContent({ sql, poolPromise }, village.id);
+
+        res.json({ ...village, adminUsername, adminPassword });
+    } catch (err) {
+        if (String(err.message).includes('UNIQUE')) {
+            return res.status(409).json({ error: `Slug '${req.body.slug}' is already taken` });
+        }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/super-admin/villages/:id', requireSuperAdmin, async (req, res) => {
+    try {
+        const { slug, name, is_active } = req.body;
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .input('slug', sql.NVarChar, slug)
+            .input('name', sql.NVarChar, name)
+            .input('is_active', sql.Int, is_active === undefined ? 1 : (is_active ? 1 : 0))
+            .query('UPDATE Village SET slug = @slug, name = @name, is_active = @is_active WHERE id = @id');
+        res.json({ message: 'Village updated' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Permanently deletes a village and all of its data (cascades via FK).
+// Meant for cleaning up test/mistaken villages, not routine use.
+app.delete('/super-admin/villages/:id', requireSuperAdmin, async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('DELETE FROM Village WHERE id = @id');
+        res.json({ message: 'Village deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Public APIs (tenant-scoped via req.village) ─────────────────
 app.get('/village', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
+            .input('vid', sql.Int, req.village.id)
             .query(`
-                SELECT TOP 1 * FROM Village;
-                SELECT * FROM VillageImages WHERE village_id = (SELECT TOP 1 id FROM Village);
-                SELECT * FROM Achievements WHERE village_id = (SELECT TOP 1 id FROM Village);
-                SELECT * FROM SpecialPersonalities WHERE village_id = (SELECT TOP 1 id FROM Village);
+                SELECT * FROM VillageImages WHERE village_id = @vid;
+                SELECT * FROM Achievements WHERE village_id = @vid;
+                SELECT * FROM SpecialPersonalities WHERE village_id = @vid;
             `);
-        
-        const village = result.recordsets[0][0];
-        if (!village) {
-            // Fallback to dummy data if DB is empty
-            return res.json(villageData);
-        }
 
-        const orderedImages = (result.recordsets[1] || []).sort((a, b) => a.id - b.id);
+        const orderedImages = (result.recordsets[0] || []).sort((a, b) => a.id - b.id);
         const images = orderedImages.map(img => img.image_url);
         const villageImages = orderedImages.map((img) => ({ id: img.id, url: img.image_url }));
-        const achievements = result.recordsets[2];
-        const special_persons = result.recordsets[3];
+        const achievements = result.recordsets[1];
+        const special_persons = result.recordsets[2];
 
         res.json({
-            ...village,
+            ...req.village,
             images,
             villageImages,
             achievements,
             special_persons,
             history: {
-                english: village.history_en,
-                gujarati: village.history_gu
+                english: req.village.history_en,
+                gujarati: req.village.history_gu
             }
         });
     } catch (err) {
         console.error('SQL Error:', err);
-        res.json(villageData); // Fallback on error
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -171,14 +309,11 @@ app.get('/census', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
-            .query('SELECT * FROM Census WHERE village_id = (SELECT TOP 1 id FROM Village)');
-        
-        if (result.recordset.length === 0) {
-            return res.json(censusData);
-        }
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT * FROM Census WHERE village_id = @vid');
         res.json(result.recordset);
     } catch (err) {
-        res.json(censusData);
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -186,33 +321,32 @@ app.get('/panchayat', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
-            .query('SELECT * FROM PanchayatMembers WHERE village_id = (SELECT TOP 1 id FROM Village)');
-        
-        if (result.recordset.length === 0) {
-            return res.json(panchayatMembers);
-        }
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT * FROM PanchayatMembers WHERE village_id = @vid');
         res.json(result.recordset);
     } catch (err) {
-        res.json(panchayatMembers);
+        res.status(500).json({ error: err.message });
     }
 });
 
 // Admin: add a new Panchayat member (max 3)
-app.post('/panchayat/member/add', async (req, res) => {
+app.post('/panchayat/member/add', requireAdmin, async (req, res) => {
     try {
         const { role, name, email, mobile, address, description, photo_url } = req.body;
         if (!name || !role) return res.status(400).json({ error: 'name and role are required' });
 
         const pool = await poolPromise;
+        const vid = req.village.id;
 
         // Enforce 3-member limit
         const countRes = await pool.request()
-            .query('SELECT COUNT(*) AS cnt FROM PanchayatMembers WHERE village_id = (SELECT TOP 1 id FROM Village)');
+            .input('vid', sql.Int, vid)
+            .query('SELECT COUNT(*) AS cnt FROM PanchayatMembers WHERE village_id = @vid');
         const count = countRes.recordset[0]?.cnt ?? 0;
         if (count >= 3) return res.status(400).json({ error: 'Maximum 3 members allowed' });
 
         const result = await pool.request()
-            .input('village_id', sql.Int, 1)
+            .input('village_id', sql.Int, vid)
             .input('role', sql.NVarChar, role ?? '')
             .input('name', sql.NVarChar, name ?? '')
             .input('email', sql.NVarChar, email ?? '')
@@ -222,11 +356,10 @@ app.post('/panchayat/member/add', async (req, res) => {
             .input('photo', sql.NVarChar, photo_url ?? '')
             .query(`
                 INSERT INTO PanchayatMembers (village_id, role, name, email, mobile, address, description, photo_url)
-                OUTPUT INSERTED.id
-                VALUES ((SELECT TOP 1 id FROM Village), @role, @name, @email, @mobile, @address, @desc, @photo)
+                VALUES (@village_id, @role, @name, @email, @mobile, @address, @desc, @photo)
             `);
 
-        res.json({ message: 'Member added', id: result.recordset[0]?.id });
+        res.json({ message: 'Member added', id: result.lastInsertRowid });
     } catch (err) {
         console.error('Add member error:', err);
         res.status(500).json({ error: err.message });
@@ -234,7 +367,7 @@ app.post('/panchayat/member/add', async (req, res) => {
 });
 
 // Admin: update a Panchayat member
-app.post('/panchayat/member/update', async (req, res) => {
+app.post('/panchayat/member/update', requireAdmin, async (req, res) => {
     try {
         const {
             id,
@@ -251,11 +384,10 @@ app.post('/panchayat/member/update', async (req, res) => {
             return res.status(400).json({ error: 'Missing member id' });
         }
 
-        console.log('Update member request:', { id, role, name, email, mobile, address, photo_url });
-
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, id)
+            .input('vid', sql.Int, req.village.id)
             .input('role', sql.NVarChar, role ?? '')
             .input('name', sql.NVarChar, name ?? '')
             .input('email', sql.NVarChar, email ?? '')
@@ -272,7 +404,7 @@ app.post('/panchayat/member/update', async (req, res) => {
                     address = @address,
                     description = @desc,
                     photo_url = @photo
-                WHERE id = @id
+                WHERE id = @id AND village_id = @vid
             `);
 
         if (result.rowsAffected && result.rowsAffected[0] === 0) {
@@ -289,7 +421,7 @@ app.post('/panchayat/member/update', async (req, res) => {
 // Public APIs for Village Services (editable by Admin)
 app.get('/services', async (req, res) => {
     try {
-        const services = await getServices();
+        const services = await getServices(req.village.id);
         res.json(services);
     } catch (err) {
         console.error('Error fetching services:', err);
@@ -299,11 +431,11 @@ app.get('/services', async (req, res) => {
 
 // Admin API to update all services data
 // Expected body: { services: [...] } (or just an array)
-app.post('/services/update', async (req, res) => {
+app.post('/services/update', requireAdmin, async (req, res) => {
     try {
         const incoming = req.body?.services ?? req.body;
         const services = Array.isArray(incoming) ? incoming : [];
-        await updateServices(services);
+        await updateServices(req.village.id, services);
         res.json({ message: 'Services updated successfully' });
     } catch (err) {
         console.error('Error updating services:', err);
@@ -314,7 +446,7 @@ app.post('/services/update', async (req, res) => {
 app.get('/education/modules/:moduleId', async (req, res) => {
     try {
         const moduleId = req.params.moduleId;
-        const moduleData = await getEducationModule(moduleId);
+        const moduleData = await getEducationModule(req.village.id, moduleId);
         if (!moduleData) {
             return res.status(404).json({ error: 'Module not found' });
         }
@@ -325,11 +457,11 @@ app.get('/education/modules/:moduleId', async (req, res) => {
     }
 });
 
-app.post('/education/modules/:moduleId/update', async (req, res) => {
+app.post('/education/modules/:moduleId/update', requireAdmin, async (req, res) => {
     try {
         const moduleId = req.params.moduleId;
         const data = req.body?.data ?? req.body;
-        await updateEducationModule(moduleId, data);
+        await updateEducationModule(req.village.id, moduleId, data);
         res.json({ message: 'Module updated successfully' });
     } catch (err) {
         console.error('Error updating education module:', err);
@@ -337,19 +469,16 @@ app.post('/education/modules/:moduleId/update', async (req, res) => {
     }
 });
 
-app.post('/education/modules/:moduleId/upload-photo', upload.single('photo'), async (req, res) => {
+app.post('/education/modules/:moduleId/upload-photo', requireAdmin, upload.single('photo'), async (req, res) => {
     try {
-        const moduleId = toSafeString(req.params?.moduleId);
-        if (!EDUCATION_MODULE_IDS.includes(moduleId)) {
-            return res.status(404).json({ error: 'Education module not found' });
-        }
+        const moduleId = String(req.params?.moduleId ?? '');
 
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        const recordId = toSafeString(req.body?.recordId);
-        const photoUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+        const recordId = String(req.body?.recordId ?? '');
+        const photoUrl = fileUrl(req, req.file.filename);
         res.json({
             message: 'Photo uploaded successfully',
             moduleId,
@@ -365,7 +494,7 @@ app.post('/education/modules/:moduleId/upload-photo', upload.single('photo'), as
 app.get('/employment/modules/:moduleId', async (req, res) => {
     try {
         const moduleId = req.params.moduleId;
-        const moduleData = await getEmploymentModule(moduleId);
+        const moduleData = await getEmploymentModule(req.village.id, moduleId);
         if (!moduleData) {
             return res.status(404).json({ error: 'Module not found' });
         }
@@ -376,11 +505,11 @@ app.get('/employment/modules/:moduleId', async (req, res) => {
     }
 });
 
-app.post('/employment/modules/:moduleId/update', async (req, res) => {
+app.post('/employment/modules/:moduleId/update', requireAdmin, async (req, res) => {
     try {
         const moduleId = req.params.moduleId;
         const data = req.body?.data ?? req.body;
-        await updateEmploymentModule(moduleId, data);
+        await updateEmploymentModule(req.village.id, moduleId, data);
         res.json({ message: 'Module updated successfully' });
     } catch (err) {
         console.error('Error updating employment module:', err);
@@ -388,21 +517,18 @@ app.post('/employment/modules/:moduleId/update', async (req, res) => {
     }
 });
 
-app.post('/employment/modules/:moduleId/upload-file', upload.single('file'), async (req, res) => {
+app.post('/employment/modules/:moduleId/upload-file', requireAdmin, upload.single('file'), async (req, res) => {
     try {
-        const moduleId = toSafeString(req.params?.moduleId);
-        if (!EMPLOYMENT_MODULE_IDS.includes(moduleId)) {
-            return res.status(404).json({ error: 'Employment module not found' });
-        }
+        const moduleId = String(req.params?.moduleId ?? '');
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        const fileUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+        const fileLink = fileUrl(req, req.file.filename);
         res.json({
             message: 'File uploaded successfully',
             moduleId,
-            file_url: fileUrl
+            file_url: fileLink
         });
     } catch (err) {
         console.error('Employment module file upload failed:', err);
@@ -413,7 +539,7 @@ app.post('/employment/modules/:moduleId/upload-file', upload.single('file'), asy
 app.get('/facilities/modules/:moduleId', async (req, res) => {
     try {
         const moduleId = req.params.moduleId;
-        const moduleData = await getFacilitiesModule(moduleId);
+        const moduleData = await getFacilitiesModule(req.village.id, moduleId);
         if (!moduleData) {
             return res.status(404).json({ error: 'Module not found' });
         }
@@ -424,11 +550,11 @@ app.get('/facilities/modules/:moduleId', async (req, res) => {
     }
 });
 
-app.post('/facilities/modules/:moduleId/update', async (req, res) => {
+app.post('/facilities/modules/:moduleId/update', requireAdmin, async (req, res) => {
     try {
         const moduleId = req.params.moduleId;
         const data = req.body?.data ?? req.body;
-        await updateFacilitiesModule(moduleId, data);
+        await updateFacilitiesModule(req.village.id, moduleId, data);
         res.json({ message: 'Module updated successfully' });
     } catch (err) {
         console.error('Error updating facilities module:', err);
@@ -439,7 +565,7 @@ app.post('/facilities/modules/:moduleId/update', async (req, res) => {
 // Public API: Primary School details page data (redirects to module endpoint)
 app.get('/education/primary-school', async (req, res) => {
     try {
-        const moduleData = await getEducationModule('primary-school');
+        const moduleData = await getEducationModule(req.village.id, 'primary-school');
         if (!moduleData) {
             return res.status(404).json({ error: 'Primary school data not found' });
         }
@@ -457,7 +583,7 @@ app.get('/education/primary-school', async (req, res) => {
 });
 
 // Admin API: Update all Primary School details
-app.post('/education/primary-school/update', async (req, res) => {
+app.post('/education/primary-school/update', requireAdmin, async (req, res) => {
     try {
         const data = req.body?.data ?? req.body;
         // Transform staff -> records for storage
@@ -467,7 +593,7 @@ app.post('/education/primary-school/update', async (req, res) => {
             announcements: data.announcements,
             map: data.map
         };
-        await updateEducationModule('primary-school', moduleData);
+        await updateEducationModule(req.village.id, 'primary-school', moduleData);
         res.json({ message: 'Primary school details updated successfully' });
     } catch (err) {
         console.error('Primary school update failed:', err);
@@ -476,14 +602,14 @@ app.post('/education/primary-school/update', async (req, res) => {
 });
 
 // Admin API: Upload teacher photo for Primary School page
-app.post('/education/primary-school/upload-photo', upload.single('photo'), async (req, res) => {
+app.post('/education/primary-school/upload-photo', requireAdmin, upload.single('photo'), async (req, res) => {
     try {
-        const teacherId = toSafeString(req.body?.teacherId);
+        const teacherId = String(req.body?.teacherId ?? '');
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        const photoUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+        const photoUrl = fileUrl(req, req.file.filename);
         res.json({
             message: 'Teacher photo uploaded successfully',
             teacherId,
@@ -495,12 +621,13 @@ app.post('/education/primary-school/upload-photo', upload.single('photo'), async
     }
 });
 
-// Admin APIs (to be implemented with authentication)
-app.post('/village/update', async (req, res) => {
+// Admin APIs
+app.post('/village/update', requireAdmin, async (req, res) => {
     try {
-        const { name, taluka, district, state, area, total_households, description, history_en, history_gu } = req.body;
+        const { name, taluka, district, state, area, total_households, description, history_en, history_gu, theme } = req.body;
         const pool = await poolPromise;
         await pool.request()
+            .input('vid', sql.Int, req.village.id)
             .input('name', sql.NVarChar, name)
             .input('taluka', sql.NVarChar, taluka)
             .input('district', sql.NVarChar, district)
@@ -510,12 +637,13 @@ app.post('/village/update', async (req, res) => {
             .input('desc', sql.NVarChar, description)
             .input('hen', sql.NVarChar, history_en)
             .input('hgu', sql.NVarChar, history_gu)
+            .input('theme', sql.NVarChar, VALID_THEMES.includes(theme) ? theme : req.village.theme)
             .query(`
-                UPDATE Village SET 
-                name = @name, taluka = @taluka, district = @district, state = @state, 
+                UPDATE Village SET
+                name = @name, taluka = @taluka, district = @district, state = @state,
                 area = @area, total_households = @households, description = @desc,
-                history_en = @hen, history_gu = @hgu
-                WHERE id = (SELECT TOP 1 id FROM Village)
+                history_en = @hen, history_gu = @hgu, theme = @theme
+                WHERE id = @vid
             `);
         res.json({ message: 'Village updated successfully' });
     } catch (err) {
@@ -523,21 +651,21 @@ app.post('/village/update', async (req, res) => {
     }
 });
 
-app.post('/village/upload-image', upload.single('image'), async (req, res) => {
+app.post('/village/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
-        
-        const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+
+        const imageUrl = fileUrl(req, req.file.filename);
         const pool = await poolPromise;
-        
+
         // Add to VillageImages table
         await pool.request()
-            .input('vId', sql.Int, 1) // Using 1 for now as we have one village
+            .input('vId', sql.Int, req.village.id)
             .input('url', sql.NVarChar, imageUrl)
             .query('INSERT INTO VillageImages (village_id, image_url) VALUES (@vId, @url)');
-            
+
         res.json({ message: 'Image uploaded successfully', imageUrl });
     } catch (err) {
         console.error('Upload Error:', err);
@@ -545,10 +673,9 @@ app.post('/village/upload-image', upload.single('image'), async (req, res) => {
     }
 });
 
-app.post('/panchayat/member/upload-photo', upload.single('photo'), async (req, res) => {
+app.post('/panchayat/member/upload-photo', requireAdmin, upload.single('photo'), async (req, res) => {
     try {
         const memberId = parseInt(req.body.memberId, 10);
-        console.log('Upload member photo:', { memberId, filename: req.file?.filename });
 
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
@@ -557,13 +684,14 @@ app.post('/panchayat/member/upload-photo', upload.single('photo'), async (req, r
             return res.status(400).json({ message: 'Invalid member ID' });
         }
 
-        const photoUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+        const photoUrl = fileUrl(req, req.file.filename);
         const pool = await poolPromise;
 
         const result = await pool.request()
             .input('id', sql.Int, memberId)
+            .input('vid', sql.Int, req.village.id)
             .input('photo', sql.NVarChar, photoUrl)
-            .query('UPDATE PanchayatMembers SET photo_url = @photo WHERE id = @id');
+            .query('UPDATE PanchayatMembers SET photo_url = @photo WHERE id = @id AND village_id = @vid');
 
         if (result.rowsAffected && result.rowsAffected[0] === 0) {
             return res.status(404).json({ message: 'Member not found for photo update' });
@@ -576,7 +704,7 @@ app.post('/panchayat/member/upload-photo', upload.single('photo'), async (req, r
     }
 });
 
-app.delete('/village/image/:id', async (req, res) => {
+app.delete('/village/image/:id', requireAdmin, async (req, res) => {
     try {
         const imageId = parseInt(req.params.id, 10);
         if (Number.isNaN(imageId)) {
@@ -586,7 +714,8 @@ app.delete('/village/image/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, imageId)
-            .query('SELECT image_url FROM VillageImages WHERE id = @id');
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT image_url FROM VillageImages WHERE id = @id AND village_id = @vid');
 
         if (result.recordset.length === 0) {
             return res.status(404).json({ error: 'Image not found' });
@@ -599,7 +728,8 @@ app.delete('/village/image/:id', async (req, res) => {
         // Delete from DB
         await pool.request()
             .input('id', sql.Int, imageId)
-            .query('DELETE FROM VillageImages WHERE id = @id');
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM VillageImages WHERE id = @id AND village_id = @vid');
 
         // Delete local file if exists
         if (fs.existsSync(filePath)) {
@@ -613,16 +743,17 @@ app.delete('/village/image/:id', async (req, res) => {
     }
 });
 
-app.post('/census/add', async (req, res) => {
+app.post('/census/add', requireAdmin, async (req, res) => {
     try {
         const { category, total, male, female } = req.body;
         const pool = await poolPromise;
         await pool.request()
+            .input('vid', sql.Int, req.village.id)
             .input('cat', sql.NVarChar, category)
             .input('total', sql.Int, total)
             .input('male', sql.Int, male)
             .input('female', sql.Int, female)
-            .query('INSERT INTO Census (village_id, category, total, male, female) VALUES ((SELECT TOP 1 id FROM Village), @cat, @total, @male, @female)');
+            .query('INSERT INTO Census (village_id, category, total, male, female) VALUES (@vid, @cat, @total, @male, @female)');
         res.json({ message: 'Census added successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -630,7 +761,7 @@ app.post('/census/add', async (req, res) => {
 });
 
 // Admin: update census record
-app.post('/census/update', async (req, res) => {
+app.post('/census/update', requireAdmin, async (req, res) => {
     try {
         const { id, category, total, male, female } = req.body;
 
@@ -641,6 +772,7 @@ app.post('/census/update', async (req, res) => {
         const pool = await poolPromise;
         await pool.request()
             .input('id', sql.Int, id)
+            .input('vid', sql.Int, req.village.id)
             .input('cat', sql.NVarChar, category ?? '')
             .input('total', sql.Int, total)
             .input('male', sql.Int, male)
@@ -651,7 +783,7 @@ app.post('/census/update', async (req, res) => {
                     total = @total,
                     male = @male,
                     female = @female
-                WHERE id = @id
+                WHERE id = @id AND village_id = @vid
             `);
 
         res.json({ message: 'Census updated successfully' });
@@ -660,12 +792,13 @@ app.post('/census/update', async (req, res) => {
     }
 });
 
-app.delete('/census/:id', async (req, res) => {
+app.delete('/census/:id', requireAdmin, async (req, res) => {
     try {
         const pool = await poolPromise;
         await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query('DELETE FROM Census WHERE id = @id');
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM Census WHERE id = @id AND village_id = @vid');
         res.json({ message: 'Census deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -679,9 +812,8 @@ app.post('/auth/register', async (req, res) => {
         if (!username || !password) {
             return res.status(400).json({ message: 'Username and password are required' });
         }
-
-        if (username === ADMIN_USERNAME && role !== 'admin') {
-            return res.status(400).json({ message: 'The admin username is reserved and cannot be registered as a user.' });
+        if (password.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters.' });
         }
 
         let finalRole = 'user';
@@ -693,20 +825,25 @@ app.post('/auth/register', async (req, res) => {
         }
 
         const pool = await poolPromise;
+        const vid = req.village.id;
         const existing = await pool.request()
+            .input('vid', sql.Int, vid)
             .input('username', sql.NVarChar, username)
-            .query('SELECT id FROM Users WHERE username = @username');
+            .query('SELECT id FROM Users WHERE village_id = @vid AND username = @username');
 
         if (existing.recordset.length > 0) {
             return res.status(409).json({ message: 'Username already exists' });
         }
 
+        const passwordHash = await bcrypt.hash(password, 10);
+
         await pool.request()
+            .input('vid', sql.Int, vid)
             .input('username', sql.NVarChar, username)
-            .input('password', sql.NVarChar, password)
+            .input('password', sql.NVarChar, passwordHash)
             .input('email', sql.NVarChar, email || null)
             .input('role', sql.NVarChar, finalRole)
-            .query('INSERT INTO Users (username, password, email, role) VALUES (@username, @password, @email, @role)');
+            .query('INSERT INTO Users (village_id, username, password, email, role) VALUES (@vid, @username, @password, @email, @role)');
 
         res.json({ message: `${finalRole === 'admin' ? 'Admin' : 'User'} registered successfully` });
     } catch (err) {
@@ -717,69 +854,45 @@ app.post('/auth/register', async (req, res) => {
 
 app.post('/auth/login', async (req, res) => {
     try {
-        const { username, password, role = 'user' } = req.body;
+        const { username, password, role } = req.body;
         if (!username || !password) {
             return res.status(400).json({ message: 'Username and password are required' });
         }
 
-        if (role === 'admin') {
-            if (!ADMIN_PASSWORD) {
-                return res.status(500).json({ message: 'Admin password not configured on server.' });
-            }
+        const pool = await poolPromise;
+        const vid = req.village.id;
 
-            if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-                return res.json({ token: 'admin-dummy-token', role: 'admin', user: { username: ADMIN_USERNAME } });
-            }
+        const result = await pool.request()
+            .input('vid', sql.Int, vid)
+            .input('username', sql.NVarChar, username)
+            .query('SELECT id, username, password, role FROM Users WHERE village_id = @vid AND username = @username');
 
-            const pool = await poolPromise;
-
-            // Support admin users stored in DB (optional)
-            const result = await pool.request()
-                .input('username', sql.NVarChar, username)
-                .input('password', sql.NVarChar, password)
-                .query("SELECT id, username, role FROM Users WHERE username = @username AND password = @password AND role = 'admin'");
-
-            if (result.recordset.length > 0) {
-                const adminUser = result.recordset[0];
-                return res.json({ token: 'admin-dummy-token', role: 'admin', user: { id: adminUser.id, username: adminUser.username } });
-            }
-
-            return res.status(401).json({ message: 'Invalid admin credentials.' });
+        const user = result.recordset[0];
+        if (!user) {
+            return res.status(401).json({ message: 'User not found. Please register first.' });
         }
 
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .input('username', sql.NVarChar, username)
-            .input('password', sql.NVarChar, password)
-            .query('SELECT id, username, role FROM Users WHERE username = @username AND password = @password');
-
-        if (result.recordset.length === 0) {
-            const existing = await pool.request()
-                .input('username', sql.NVarChar, username)
-                .query('SELECT id FROM Users WHERE username = @username');
-
-            if (existing.recordset.length === 0) {
-                return res.status(401).json({ message: 'User not found. Please register first.' });
-            }
+        const valid = await bcrypt.compare(password, user.password);
+        if (!valid) {
             return res.status(401).json({ message: 'Incorrect password.' });
         }
 
-        const user = result.recordset[0];
-        // Always return 'user' role for non-admin login, regardless of what's in the database
-        res.json({ token: 'user-dummy-token', role: 'user', user: { id: user.id, username: user.username } });
+        // The requested login tab can only restrict, never grant — the DB's
+        // stored role is always the source of truth for what a token allows.
+        if (role === 'admin' && user.role !== 'admin') {
+            return res.status(403).json({ message: 'This account does not have admin access.' });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, username: user.username, role: user.role, villageId: vid },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({ token, role: user.role, user: { id: user.id, username: user.username } });
     } catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ message: 'Login failed', error: err.message });
-    }
-});
-
-// Maintain compatibility with old login route
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        res.json({ token: 'dummy-jwt-token', role: 'admin' });
-    } else {
-        res.status(401).json({ message: 'Invalid credentials' });
     }
 });
 
@@ -787,7 +900,9 @@ app.post('/login', (req, res) => {
 app.get('/pages', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query('SELECT id, title, slug, status, created_at FROM Pages ORDER BY created_at DESC');
+        const result = await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT id, title, slug, status, created_at FROM Pages WHERE village_id = @vid ORDER BY created_at DESC');
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -798,8 +913,9 @@ app.get('/pages/:slug', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
+            .input('vid', sql.Int, req.village.id)
             .input('slug', sql.NVarChar, req.params.slug)
-            .query('SELECT * FROM Pages WHERE slug = @slug');
+            .query('SELECT * FROM Pages WHERE village_id = @vid AND slug = @slug');
         if (!result.recordset[0]) return res.status(404).json({ error: 'Page not found' });
         const page = result.recordset[0];
         page.content_json = page.content_json ? JSON.parse(page.content_json) : [];
@@ -809,17 +925,21 @@ app.get('/pages/:slug', async (req, res) => {
     }
 });
 
-app.post('/pages', async (req, res) => {
+app.post('/pages', requireAdmin, async (req, res) => {
     const { title, slug, content_json, status } = req.body;
     if (!title || !slug) return res.status(400).json({ error: 'title and slug required' });
     try {
         const pool = await poolPromise;
         const result = await pool.request()
+            .input('vid', sql.Int, req.village.id)
             .input('title', sql.NVarChar, title)
             .input('slug', sql.NVarChar, slug)
             .input('content_json', sql.NVarChar, JSON.stringify(content_json || []))
             .input('status', sql.NVarChar, status || 'draft')
-            .query('INSERT INTO Pages (title, slug, content_json, status) OUTPUT INSERTED.* VALUES (@title, @slug, @content_json, @status)');
+            .query(`
+                INSERT INTO Pages (village_id, title, slug, content_json, status) VALUES (@vid, @title, @slug, @content_json, @status);
+                SELECT * FROM Pages WHERE id = last_insert_rowid();
+            `);
         const page = result.recordset[0];
         page.content_json = JSON.parse(page.content_json);
         res.json(page);
@@ -828,111 +948,321 @@ app.post('/pages', async (req, res) => {
     }
 });
 
-app.put('/pages/:id', async (req, res) => {
+app.put('/pages/:id', requireAdmin, async (req, res) => {
     const { title, slug, content_json, status } = req.body;
     try {
         const pool = await poolPromise;
         await pool.request()
             .input('id', sql.Int, req.params.id)
+            .input('vid', sql.Int, req.village.id)
             .input('title', sql.NVarChar, title)
             .input('slug', sql.NVarChar, slug)
             .input('content_json', sql.NVarChar, JSON.stringify(content_json || []))
             .input('status', sql.NVarChar, status || 'draft')
-            .query('UPDATE Pages SET title=@title, slug=@slug, content_json=@content_json, status=@status WHERE id=@id');
+            .query('UPDATE Pages SET title=@title, slug=@slug, content_json=@content_json, status=@status WHERE id=@id AND village_id=@vid');
         res.json({ message: 'Page updated' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-app.delete('/pages/:id', async (req, res) => {
+app.delete('/pages/:id', requireAdmin, async (req, res) => {
     try {
         const pool = await poolPromise;
         await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query('DELETE FROM Pages WHERE id=@id');
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM Pages WHERE id=@id AND village_id=@vid');
         res.json({ message: 'Page deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// ── Live Page Editor APIs ──────────────────────────────────────
-// Auto-create PageContent table if missing
-const initPageContentTable = async () => {
-    try {
-        const pool = await poolPromise;
-        await pool.request().query(`
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PageContent' AND xtype='U')
-            CREATE TABLE PageContent (
-                id           INT PRIMARY KEY IDENTITY(1,1),
-                page_name    NVARCHAR(100) UNIQUE NOT NULL,
-                content_json NVARCHAR(MAX),
-                updated_at   DATETIME DEFAULT GETDATE()
-            );
-        `);
-    } catch (err) {
-        console.error('Failed to init PageContent table:', err);
-    }
-};
-initPageContentTable();
-
-const initContactMessagesTable = async () => {
-    try {
-        const pool = await poolPromise;
-        await pool.request().query(`
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ContactMessages' AND xtype='U')
-            CREATE TABLE ContactMessages (
-                id         INT PRIMARY KEY IDENTITY(1,1),
-                name       NVARCHAR(200) NOT NULL,
-                email      NVARCHAR(200) NOT NULL,
-                message    NVARCHAR(MAX) NOT NULL,
-                is_read    BIT DEFAULT 0,
-                created_at DATETIME DEFAULT GETDATE()
-            );
-        `);
-    } catch (err) {
-        console.error('Failed to init ContactMessages table:', err);
-    }
-};
-initContactMessagesTable();
-
-// GET /page-content/:pageName — load saved section layout
-app.get('/page-content/:pageName', async (req, res) => {
+// ── Navigation (menu / submenu) APIs ────────────────────────────
+// GET /navigation — public, returns the nested menu tree for the Navbar
+app.get('/navigation', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
-            .input('pageName', sql.NVarChar, req.params.pageName)
-            .query('SELECT content_json FROM PageContent WHERE page_name = @pageName');
-        if (!result.recordset[0]) return res.status(404).json({ error: 'No saved layout' });
-        const sections = JSON.parse(result.recordset[0].content_json || '[]');
-        res.json({ sections });
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT * FROM NavigationItems WHERE village_id = @vid ORDER BY display_order');
+
+        const rows = result.recordset;
+        const byId = new Map(rows.map(r => [r.id, { ...r, children: [] }]));
+        const tree = [];
+        for (const row of rows) {
+            const node = byId.get(row.id);
+            if (row.parent_id && byId.has(row.parent_id)) {
+                byId.get(row.parent_id).children.push(node);
+            } else {
+                tree.push(node);
+            }
+        }
+        res.json(tree);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// PUT /page-content/:pageName — save section layout (admin only)
-app.put('/page-content/:pageName', async (req, res) => {
-    const { sections } = req.body;
-    if (!Array.isArray(sections)) return res.status(400).json({ error: 'sections array required' });
+// PUT /navigation — replace the entire menu tree for this village (admin only)
+// Body: { items: [ { label_en, label_gu, link_type, link_value, icon_url, children: [...] } ] }
+app.put('/navigation', requireAdmin, async (req, res) => {
+    const items = req.body?.items;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
+
     try {
         const pool = await poolPromise;
-        await pool.request()
-            .input('pageName', sql.NVarChar, req.params.pageName)
-            .input('json', sql.NVarChar, JSON.stringify(sections))
-            .query(`
-                MERGE PageContent AS target
-                USING (SELECT @pageName AS page_name) AS source ON target.page_name = source.page_name
-                WHEN MATCHED THEN
-                    UPDATE SET content_json = @json, updated_at = GETDATE()
-                WHEN NOT MATCHED THEN
-                    INSERT (page_name, content_json) VALUES (@pageName, @json);
-            `);
-        res.json({ message: 'Layout saved' });
+        const vid = req.village.id;
+
+        await pool.request().input('vid', sql.Int, vid).query('DELETE FROM NavigationItems WHERE village_id = @vid');
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const result = await pool.request()
+                .input('vid', sql.Int, vid)
+                .input('label_en', sql.NVarChar, item.label_en || '')
+                .input('label_gu', sql.NVarChar, item.label_gu || '')
+                .input('link_type', sql.NVarChar, item.link_type || 'page')
+                .input('link_value', sql.NVarChar, item.link_value || '')
+                .input('icon_url', sql.NVarChar, item.icon_url || '')
+                .input('display_order', sql.Int, i)
+                .query(`
+                    INSERT INTO NavigationItems (village_id, label_en, label_gu, link_type, link_value, icon_url, display_order)
+                    VALUES (@vid, @label_en, @label_gu, @link_type, @link_value, @icon_url, @display_order)
+                `);
+            const parentId = result.lastInsertRowid;
+
+            const children = Array.isArray(item.children) ? item.children : [];
+            for (let j = 0; j < children.length; j++) {
+                const child = children[j];
+                await pool.request()
+                    .input('vid', sql.Int, vid)
+                    .input('parent_id', sql.Int, parentId)
+                    .input('label_en', sql.NVarChar, child.label_en || '')
+                    .input('label_gu', sql.NVarChar, child.label_gu || '')
+                    .input('link_type', sql.NVarChar, child.link_type || 'page')
+                    .input('link_value', sql.NVarChar, child.link_value || '')
+                    .input('icon_url', sql.NVarChar, child.icon_url || '')
+                    .input('display_order', sql.Int, j)
+                    .query(`
+                        INSERT INTO NavigationItems (village_id, parent_id, label_en, label_gu, link_type, link_value, icon_url, display_order)
+                        VALUES (@vid, @parent_id, @label_en, @label_gu, @link_type, @link_value, @icon_url, @display_order)
+                    `);
+            }
+        }
+
+        res.json({ message: 'Navigation saved' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// POST /navigation/upload-icon — upload a small icon/image for a nav item
+app.post('/navigation/upload-icon', requireAdmin, upload.single('icon'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    res.json({ icon_url: fileUrl(req, req.file.filename) });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUSINESS DIRECTORY ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /business — public, searchable/filterable listing (published only)
+app.get('/business', async (req, res) => {
+    try {
+        const { q, category } = req.query;
+        const businesses = await getBusinesses(req.village.id, { q, category });
+        res.json(businesses);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /business/categories — public, distinct categories for the filter dropdown
+app.get('/business/categories', async (req, res) => {
+    try {
+        const categories = await getBusinessCategories(req.village.id);
+        res.json(categories);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /business/admin — admin, includes unpublished listings
+app.get('/business/admin', requireAdmin, async (req, res) => {
+    try {
+        const businesses = await getBusinesses(req.village.id, { includeUnpublished: true });
+        res.json(businesses);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /business/admin/:id — admin, fetch one by id (including unpublished + products) for editing
+app.get('/business/admin/:id', requireAdmin, async (req, res) => {
+    try {
+        const business = await getBusinessById(req.village.id, req.params.id);
+        if (!business) return res.status(404).json({ error: 'Business not found' });
+        res.json(business);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /business/:slug — public detail page (published only)
+app.get('/business/:slug', async (req, res) => {
+    try {
+        const business = await getBusinessBySlug(req.village.id, req.params.slug);
+        if (!business) return res.status(404).json({ error: 'Business not found' });
+        res.json(business);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /business — admin, create a listing
+app.post('/business', requireAdmin, async (req, res) => {
+    try {
+        if (!req.body.name) return res.status(400).json({ error: 'Business name is required' });
+        const business = await createBusiness(req.village.id, req.body);
+        res.json(business);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /business/:id — admin, update a listing
+app.put('/business/:id', requireAdmin, async (req, res) => {
+    try {
+        await updateBusiness(req.village.id, req.params.id, req.body);
+        res.json({ message: 'Business updated' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /business/:id — admin, delete a listing (cascades products)
+app.delete('/business/:id', requireAdmin, async (req, res) => {
+    try {
+        await deleteBusiness(req.village.id, req.params.id);
+        res.json({ message: 'Business deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /business/:id/products — admin, replace the whole product/portfolio list
+app.put('/business/:id/products', requireAdmin, async (req, res) => {
+    try {
+        const products = Array.isArray(req.body?.products) ? req.body.products : [];
+        await updateBusinessProducts(req.village.id, req.params.id, products);
+        res.json({ message: 'Products updated' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Business Tabs (custom, Page-Builder-style pages on a business profile) ──
+// GET /business/:slug/tabs — public, list of tabs (id/title/slug) for a published business
+app.get('/business/:slug/tabs', async (req, res) => {
+    try {
+        const business = await getBusinessBySlug(req.village.id, req.params.slug);
+        if (!business) return res.status(404).json({ error: 'Business not found' });
+        res.json(business.tabs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /business/:slug/tabs/:tabSlug — public, one tab's block content
+app.get('/business/:slug/tabs/:tabSlug', async (req, res) => {
+    try {
+        const business = await getBusinessBySlug(req.village.id, req.params.slug);
+        if (!business) return res.status(404).json({ error: 'Business not found' });
+        const tab = await getBusinessTabBySlug(req.village.id, business.id, req.params.tabSlug);
+        if (!tab) return res.status(404).json({ error: 'Tab not found' });
+        res.json(tab);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /business/admin/:id/tabs — admin, list tabs for editing
+app.get('/business/admin/:id/tabs', requireAdmin, async (req, res) => {
+    try {
+        const tabs = await getBusinessTabs(req.village.id, req.params.id);
+        res.json(tabs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /business/admin/:id/tabs/:tabId — admin, fetch one tab's blocks for editing
+app.get('/business/admin/:id/tabs/:tabId', requireAdmin, async (req, res) => {
+    try {
+        const tab = await getBusinessTabById(req.village.id, req.params.id, req.params.tabId);
+        if (!tab) return res.status(404).json({ error: 'Tab not found' });
+        res.json(tab);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /business/admin/:id/tabs — admin, create a new tab
+app.post('/business/admin/:id/tabs', requireAdmin, async (req, res) => {
+    try {
+        if (!req.body?.title) return res.status(400).json({ error: 'Tab title is required' });
+        const tab = await createBusinessTab(req.village.id, req.params.id, req.body);
+        res.json(tab);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /business/admin/:id/tabs/:tabId — admin, update a tab's title/blocks
+app.put('/business/admin/:id/tabs/:tabId', requireAdmin, async (req, res) => {
+    try {
+        await updateBusinessTab(req.village.id, req.params.id, req.params.tabId, req.body);
+        res.json({ message: 'Tab updated' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /business/admin/:id/tabs/:tabId — admin, delete a tab
+app.delete('/business/admin/:id/tabs/:tabId', requireAdmin, async (req, res) => {
+    try {
+        await deleteBusinessTab(req.village.id, req.params.id, req.params.tabId);
+        res.json({ message: 'Tab deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /business/admin/:id/tabs-order — admin, reorder tabs
+app.put('/business/admin/:id/tabs-order', requireAdmin, async (req, res) => {
+    try {
+        const orderedIds = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds : [];
+        await reorderBusinessTabs(req.village.id, req.params.id, orderedIds);
+        res.json({ message: 'Tab order saved' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Image uploads for business logo / cover / product photos
+app.post('/business/upload-logo', requireAdmin, upload.single('logo'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    res.json({ url: fileUrl(req, req.file.filename) });
+});
+app.post('/business/upload-cover', requireAdmin, upload.single('cover'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    res.json({ url: fileUrl(req, req.file.filename) });
+});
+app.post('/business/upload-product-image', requireAdmin, upload.single('image'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    res.json({ url: fileUrl(req, req.file.filename) });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -942,10 +1272,11 @@ app.put('/page-content/:pageName', async (req, res) => {
 // GET /contact/info — get contact details
 app.get('/contact/info', async (req, res) => {
     try {
-        const contactData = await fs.readJson(path.join(__dirname, 'contact-info.json')).catch(() => ({
+        const contactPath = path.join(__dirname, 'uploads', `contact-info-${req.village.id}.json`);
+        const contactData = await fs.readJson(contactPath).catch(() => ({
             phone: '+91 12345 67890',
             email: 'support@panchayatsuvidha.in',
-            address: 'Panchayat Office, Sayla',
+            address: `Panchayat Office, ${req.village.name}`,
             hours: '9:00 AM - 6:00 PM, Monday - Saturday'
         }));
         res.json(contactData);
@@ -955,11 +1286,12 @@ app.get('/contact/info', async (req, res) => {
 });
 
 // PUT /contact/info — update contact details (admin only)
-app.put('/contact/info', async (req, res) => {
+app.put('/contact/info', requireAdmin, async (req, res) => {
     try {
         const { phone, email, address, hours } = req.body;
         const contactData = { phone, email, address, hours };
-        await fs.writeJson(path.join(__dirname, 'contact-info.json'), contactData, { spaces: 2 });
+        const contactPath = path.join(__dirname, 'uploads', `contact-info-${req.village.id}.json`);
+        await fs.writeJson(contactPath, contactData, { spaces: 2 });
         res.json({ message: 'Contact info updated', data: contactData });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -976,12 +1308,13 @@ app.post('/contact/message', async (req, res) => {
 
         const pool = await poolPromise;
         await pool.request()
+            .input('vid', sql.Int, req.village.id)
             .input('name', sql.NVarChar, name)
             .input('email', sql.NVarChar, email)
             .input('message', sql.NVarChar, message)
             .query(`
-                INSERT INTO ContactMessages (name, email, message, created_at)
-                VALUES (@name, @email, @message, GETDATE())
+                INSERT INTO ContactMessages (village_id, name, email, message, created_at)
+                VALUES (@vid, @name, @email, @message, CURRENT_TIMESTAMP)
             `);
 
         res.json({ message: 'Message sent successfully' });
@@ -991,14 +1324,17 @@ app.post('/contact/message', async (req, res) => {
 });
 
 // GET /contact/messages — get all contact messages (admin only)
-app.get('/contact/messages', async (req, res) => {
+app.get('/contact/messages', requireAdmin, async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT id, name, email, message, created_at, is_read
-            FROM ContactMessages
-            ORDER BY created_at DESC
-        `);
+        const result = await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .query(`
+                SELECT id, name, email, message, created_at, is_read
+                FROM ContactMessages
+                WHERE village_id = @vid
+                ORDER BY created_at DESC
+            `);
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1006,12 +1342,13 @@ app.get('/contact/messages', async (req, res) => {
 });
 
 // PUT /contact/messages/:id/read — mark message as read (admin only)
-app.put('/contact/messages/:id/read', async (req, res) => {
+app.put('/contact/messages/:id/read', requireAdmin, async (req, res) => {
     try {
         const pool = await poolPromise;
         await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query('UPDATE ContactMessages SET is_read = 1 WHERE id = @id');
+            .input('vid', sql.Int, req.village.id)
+            .query('UPDATE ContactMessages SET is_read = 1 WHERE id = @id AND village_id = @vid');
         res.json({ message: 'Message marked as read' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1019,12 +1356,13 @@ app.put('/contact/messages/:id/read', async (req, res) => {
 });
 
 // DELETE /contact/messages/:id — delete a message (admin only)
-app.delete('/contact/messages/:id', async (req, res) => {
+app.delete('/contact/messages/:id', requireAdmin, async (req, res) => {
     try {
         const pool = await poolPromise;
         await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query('DELETE FROM ContactMessages WHERE id = @id');
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM ContactMessages WHERE id = @id AND village_id = @vid');
         res.json({ message: 'Message deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
