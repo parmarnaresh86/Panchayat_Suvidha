@@ -743,6 +743,67 @@ app.delete('/village/image/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// Admin: add a village achievement
+app.post('/achievements/add', requireAdmin, async (req, res) => {
+    try {
+        const { title, awarded_by } = req.body;
+        if (!title) return res.status(400).json({ error: 'title is required' });
+        const pool = await poolPromise;
+        await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .input('title', sql.NVarChar, title)
+            .input('awarded', sql.NVarChar, awarded_by ?? '')
+            .query('INSERT INTO Achievements (village_id, title, awarded_by) VALUES (@vid, @title, @awarded)');
+        res.json({ message: 'Achievement added successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/achievements/:id', requireAdmin, async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM Achievements WHERE id = @id AND village_id = @vid');
+        res.json({ message: 'Achievement deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Admin: add a special personality
+app.post('/special-persons/add', requireAdmin, async (req, res) => {
+    try {
+        const { name, achievement, role } = req.body;
+        if (!name) return res.status(400).json({ error: 'name is required' });
+        const pool = await poolPromise;
+        await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .input('name', sql.NVarChar, name)
+            .input('ach', sql.NVarChar, achievement ?? '')
+            .input('role', sql.NVarChar, role ?? '')
+            .query('INSERT INTO SpecialPersonalities (village_id, name, achievement, role) VALUES (@vid, @name, @ach, @role)');
+        res.json({ message: 'Special personality added successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/special-persons/:id', requireAdmin, async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM SpecialPersonalities WHERE id = @id AND village_id = @vid');
+        res.json({ message: 'Special personality deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/census/add', requireAdmin, async (req, res) => {
     try {
         const { category, total, male, female } = req.body;

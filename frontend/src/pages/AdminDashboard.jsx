@@ -176,6 +176,10 @@ const AdminDashboard = () => {
     });
     const [villageSaving, setVillageSaving] = useState(false);
 
+    // Achievements & Special Personalities state
+    const [achievementForm, setAchievementForm] = useState({ title: '', awarded_by: '' });
+    const [specialPersonForm, setSpecialPersonForm] = useState({ name: '', achievement: '', role: '' });
+
     // Census state
     const [showAddCensus, setShowAddCensus] = useState(false);
     const [censusForm, setCensusForm] = useState({
@@ -342,6 +346,40 @@ const AdminDashboard = () => {
             console.error('Delete census failed:', err);
             alert('Failed to delete census record.');
         }
+    };
+
+    const handleAddAchievement = async () => {
+        if (!achievementForm.title.trim()) { alert('Please enter a title'); return; }
+        try {
+            await axios.post('/achievements/add', achievementForm);
+            setAchievementForm({ title: '', awarded_by: '' });
+            fetchData();
+        } catch {
+            alert('Failed to add achievement');
+        }
+    };
+
+    const handleDeleteAchievement = async (id) => {
+        if (!window.confirm('Delete this achievement?')) return;
+        await axios.delete(`/achievements/${id}`);
+        fetchData();
+    };
+
+    const handleAddSpecialPerson = async () => {
+        if (!specialPersonForm.name.trim()) { alert('Please enter a name'); return; }
+        try {
+            await axios.post('/special-persons/add', specialPersonForm);
+            setSpecialPersonForm({ name: '', achievement: '', role: '' });
+            fetchData();
+        } catch {
+            alert('Failed to add special personality');
+        }
+    };
+
+    const handleDeleteSpecialPerson = async (id) => {
+        if (!window.confirm('Delete this entry?')) return;
+        await axios.delete(`/special-persons/${id}`);
+        fetchData();
     };
 
     const handleStartCensusEdit = (item) => {
@@ -826,6 +864,55 @@ const AdminDashboard = () => {
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                        </Card>
+
+                        {/* Achievements Section */}
+                        <Card>
+                            <h3 className="text-lg font-bold mb-4">{t('Achievements', 'ગામની સિદ્ધિઓ')}</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                                <Input value={achievementForm.title} onChange={e => setAchievementForm(p => ({ ...p, title: e.target.value }))} placeholder={t('Title', 'શીર્ષક')} />
+                                <div className="flex gap-2">
+                                    <Input value={achievementForm.awarded_by} onChange={e => setAchievementForm(p => ({ ...p, awarded_by: e.target.value }))} placeholder={t('Awarded by', 'એનાયત')} />
+                                    <Button onClick={handleAddAchievement} className="w-auto px-4">{t('Add', 'ઉમેરો')}</Button>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                {(villageData?.achievements || []).map(a => (
+                                    <div key={a.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
+                                        <div>
+                                            <p className="font-semibold text-gray-800 text-sm">{a.title}</p>
+                                            {a.awarded_by && <p className="text-xs text-gray-500">{a.awarded_by}</p>}
+                                        </div>
+                                        <button onClick={() => handleDeleteAchievement(a.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                ))}
+                                {(!villageData?.achievements || villageData.achievements.length === 0) && <p className="text-sm text-gray-400">{t('No achievements yet.', 'હજુ કોઈ સિદ્ધિ નથી.')}</p>}
+                            </div>
+                        </Card>
+
+                        {/* Special Personalities Section */}
+                        <Card>
+                            <h3 className="text-lg font-bold mb-4">{t('Special Personalities', 'વિશેષ વ્યક્તિઓ')}</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                                <Input value={specialPersonForm.name} onChange={e => setSpecialPersonForm(p => ({ ...p, name: e.target.value }))} placeholder={t('Name', 'નામ')} />
+                                <Input value={specialPersonForm.achievement} onChange={e => setSpecialPersonForm(p => ({ ...p, achievement: e.target.value }))} placeholder={t('Achievement', 'સિદ્ધિ')} />
+                                <div className="flex gap-2">
+                                    <Input value={specialPersonForm.role} onChange={e => setSpecialPersonForm(p => ({ ...p, role: e.target.value }))} placeholder={t('Role', 'ભૂમિકા')} />
+                                    <Button onClick={handleAddSpecialPerson} className="w-auto px-4">{t('Add', 'ઉમેરો')}</Button>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                {(villageData?.special_persons || []).map(p => (
+                                    <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
+                                        <div>
+                                            <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                                            <p className="text-xs text-gray-500">{p.achievement} {p.role && `· ${p.role}`}</p>
+                                        </div>
+                                        <button onClick={() => handleDeleteSpecialPerson(p.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                ))}
+                                {(!villageData?.special_persons || villageData.special_persons.length === 0) && <p className="text-sm text-gray-400">{t('No entries yet.', 'હજુ કોઈ પ્રવેશ નથી.')}</p>}
                             </div>
                         </Card>
 
