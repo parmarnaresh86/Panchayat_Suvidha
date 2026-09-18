@@ -32,6 +32,17 @@ CREATE TABLE IF NOT EXISTS SpecialPersonalities (
     role TEXT
 );
 
+-- FAQs table — bilingual question/answer pairs shown in the public FAQ chat widget
+CREATE TABLE IF NOT EXISTS FAQs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    question_en TEXT NOT NULL,
+    question_gu TEXT,
+    answer_en TEXT NOT NULL,
+    answer_gu TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0
+);
+
 -- VillageImages table
 CREATE TABLE IF NOT EXISTS VillageImages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

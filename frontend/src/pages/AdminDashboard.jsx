@@ -180,6 +180,10 @@ const AdminDashboard = () => {
     const [achievementForm, setAchievementForm] = useState({ title: '', awarded_by: '' });
     const [specialPersonForm, setSpecialPersonForm] = useState({ name: '', achievement: '', role: '' });
 
+    // FAQ chat widget state
+    const [faqs, setFaqs] = useState([]);
+    const [faqForm, setFaqForm] = useState({ question_en: '', question_gu: '', answer_en: '', answer_gu: '' });
+
     // Census state
     const [showAddCensus, setShowAddCensus] = useState(false);
     const [censusForm, setCensusForm] = useState({
@@ -234,14 +238,16 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [vRes, cRes, mRes] = await Promise.all([
+            const [vRes, cRes, mRes, fRes] = await Promise.all([
                 axios.get('/village'),
                 axios.get('/census'),
-                axios.get('/panchayat')
+                axios.get('/panchayat'),
+                axios.get('/faqs')
             ]);
             setVillageData(vRes.data);
             setCensusData(cRes.data);
             setMembers(mRes.data);
+            setFaqs(fRes.data);
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -379,6 +385,23 @@ const AdminDashboard = () => {
     const handleDeleteSpecialPerson = async (id) => {
         if (!window.confirm('Delete this entry?')) return;
         await axios.delete(`/special-persons/${id}`);
+        fetchData();
+    };
+
+    const handleAddFaq = async () => {
+        if (!faqForm.question_en.trim() || !faqForm.answer_en.trim()) { alert('Please enter at least the English question and answer'); return; }
+        try {
+            await axios.post('/faqs/add', faqForm);
+            setFaqForm({ question_en: '', question_gu: '', answer_en: '', answer_gu: '' });
+            fetchData();
+        } catch {
+            alert('Failed to add FAQ');
+        }
+    };
+
+    const handleDeleteFaq = async (id) => {
+        if (!window.confirm('Delete this FAQ?')) return;
+        await axios.delete(`/faqs/${id}`);
         fetchData();
     };
 
@@ -913,6 +936,35 @@ const AdminDashboard = () => {
                                     </div>
                                 ))}
                                 {(!villageData?.special_persons || villageData.special_persons.length === 0) && <p className="text-sm text-gray-400">{t('No entries yet.', 'હજુ કોઈ પ્રવેશ નથી.')}</p>}
+                            </div>
+                        </Card>
+
+                        {/* FAQ Chat Widget Section */}
+                        <Card>
+                            <h3 className="text-lg font-bold mb-1">{t('FAQ Chat Widget', 'FAQ ચેટ')}</h3>
+                            <p className="text-sm text-gray-400 mb-4">{t('Questions shown in the public chat bubble on the village site.', 'ગામની વેબસાઇટ પરના પબ્લિક ચેટ બબલમાં દેખાતા પ્રશ્નો.')}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                                <Input value={faqForm.question_en} onChange={e => setFaqForm(p => ({ ...p, question_en: e.target.value }))} placeholder={t('Question (English) *', 'પ્રશ્ન (અંગ્રેજી) *')} />
+                                <Input value={faqForm.question_gu} onChange={e => setFaqForm(p => ({ ...p, question_gu: e.target.value }))} placeholder={t('Question (Gujarati)', 'પ્રશ્ન (ગુજરાતી)')} />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                                <textarea value={faqForm.answer_en} onChange={e => setFaqForm(p => ({ ...p, answer_en: e.target.value }))} placeholder={t('Answer (English) *', 'જવાબ (અંગ્રેજી) *')} rows={2}
+                                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" />
+                                <textarea value={faqForm.answer_gu} onChange={e => setFaqForm(p => ({ ...p, answer_gu: e.target.value }))} placeholder={t('Answer (Gujarati)', 'જવાબ (ગુજરાતી)')} rows={2}
+                                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" />
+                            </div>
+                            <Button onClick={handleAddFaq} className="w-auto px-4 mb-4">{t('Add FAQ', 'FAQ ઉમેરો')}</Button>
+                            <div className="space-y-2">
+                                {faqs.map(f => (
+                                    <div key={f.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
+                                        <div>
+                                            <p className="font-semibold text-gray-800 text-sm">{f.question_en}</p>
+                                            <p className="text-xs text-gray-500">{f.answer_en}</p>
+                                        </div>
+                                        <button onClick={() => handleDeleteFaq(f.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                ))}
+                                {faqs.length === 0 && <p className="text-sm text-gray-400">{t('No FAQs added yet.', 'હજુ કોઈ FAQ ઉમેરાયો નથી.')}</p>}
                             </div>
                         </Card>
 

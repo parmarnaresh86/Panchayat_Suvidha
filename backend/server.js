@@ -864,6 +864,58 @@ app.delete('/special-persons/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// ── FAQ chat widget — public, bilingual question/answer list ───────
+app.get('/faqs', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT * FROM FAQs WHERE village_id = @vid ORDER BY display_order, id');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/faqs/add', requireAdmin, async (req, res) => {
+    try {
+        const { question_en, question_gu, answer_en, answer_gu } = req.body;
+        if (!question_en || !answer_en) return res.status(400).json({ error: 'question_en and answer_en are required' });
+        const pool = await poolPromise;
+        const countRes = await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT COUNT(*) AS cnt FROM FAQs WHERE village_id = @vid');
+        const order = countRes.recordset[0]?.cnt ?? 0;
+        await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .input('qen', sql.NVarChar, question_en)
+            .input('qgu', sql.NVarChar, question_gu ?? '')
+            .input('aen', sql.NVarChar, answer_en)
+            .input('agu', sql.NVarChar, answer_gu ?? '')
+            .input('order', sql.Int, order)
+            .query(`
+                INSERT INTO FAQs (village_id, question_en, question_gu, answer_en, answer_gu, display_order)
+                VALUES (@vid, @qen, @qgu, @aen, @agu, @order)
+            `);
+        res.json({ message: 'FAQ added successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/faqs/:id', requireAdmin, async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM FAQs WHERE id = @id AND village_id = @vid');
+        res.json({ message: 'FAQ deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/census/add', requireAdmin, async (req, res) => {
     try {
         const { category, total, male, female } = req.body;

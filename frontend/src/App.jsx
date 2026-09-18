@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import DevVillageSwitcher from './components/DevVillageSwitcher';
 import VillageSwitcherPanel from './components/VillageSwitcherPanel';
+import FaqChatWidget from './components/FaqChatWidget';
 import VillageProfile from './pages/VillageProfile';
 import PanchayatDetails from './pages/PanchayatDetails';
 import Login from './pages/Login';
@@ -129,6 +130,7 @@ function AppContent() {
             {!isAuthPage && !isSuperAdminPage && <Footer />}
             {!isSuperAdminPage && <DevVillageSwitcher />}
             {!isSuperAdminPage && <VillageSwitcherPanel />}
+            {!isAuthPage && !isSuperAdminPage && <FaqChatWidget />}
         </div>
     );
 }
