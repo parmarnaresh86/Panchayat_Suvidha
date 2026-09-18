@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, LogOut, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -73,7 +73,7 @@ const Navbar = () => {
 
     // Desktop: hover dropdown for items with children
     const desktopNav = (
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-5">
             {navItems.map(item => (
                 item.children?.length > 0 ? (
                     <div key={item.id} className="relative group">
@@ -150,17 +150,17 @@ const Navbar = () => {
     return (
         <nav className="bg-white/90 backdrop-blur border-b border-gray-200 sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
+                <div className="flex items-center justify-between h-16 gap-4">
                     {/* Logo */}
-                    <div className="flex items-center">
+                    <Link to="/" className="flex items-center flex-shrink-0">
                         <img className="h-9 w-9" src="/logo.svg" alt="Panchayat Suvidha Logo" />
-                        <span className="ml-3 text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
+                        <span className="ml-3 text-lg sm:text-xl font-bold text-gray-900 tracking-tight whitespace-nowrap">
                             PanchayatSuvidha
                         </span>
-                    </div>
+                    </Link>
 
                     {/* Desktop nav */}
-                    <div className="hidden md:flex items-center space-x-6">
+                    <div className="hidden lg:flex items-center gap-5 min-w-0">
                         {desktopNav}
 
                         <button
@@ -186,7 +186,7 @@ const Navbar = () => {
                     </div>
 
                     {/* Mobile controls */}
-                    <div className="-mr-2 flex md:hidden items-center space-x-2">
+                    <div className="-mr-2 flex lg:hidden items-center space-x-2 flex-shrink-0">
                         <button
                             onClick={toggleLanguage}
                             className="text-xs font-medium text-gray-600 border border-gray-300 px-2 py-1 rounded-md"
@@ -215,7 +215,7 @@ const Navbar = () => {
 
             {/* Mobile menu */}
             {isOpen && (
-                <div className="md:hidden" id="mobile-menu">
+                <div className="lg:hidden" id="mobile-menu">
                     <div className="px-2 pt-2 pb-3 sm:px-3">
                         {mobileNav}
                     </div>
