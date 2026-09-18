@@ -36,7 +36,7 @@ function svg(bg, fg, text, w, h) {
 </svg>`;
 }
 
-async function req(method, url, { token, village, body, isForm, fileField, fileName, fileContent } = {}) {
+async function req(method, url, { token, village, body, isForm, fileField, fileName, fileContent, extraFields } = {}) {
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (village) headers['X-Village-Slug'] = village;
@@ -44,6 +44,7 @@ async function req(method, url, { token, village, body, isForm, fileField, fileN
     if (isForm) {
         const form = new FormData();
         form.append(fileField, new Blob([fileContent], { type: 'image/svg+xml' }), fileName);
+        for (const [k, v] of Object.entries(extraFields || {})) form.append(k, v);
         opts.body = form;
     } else if (body !== undefined) {
         headers['Content-Type'] = 'application/json';
@@ -64,8 +65,21 @@ async function uploadSvg(token, village, endpoint, fileField, svgContent, fileNa
 
 const NAV_ITEMS = [
     { label_en: 'Home', label_gu: 'હોમ', link_type: 'builtin', link_value: '/' },
+    { label_en: 'Panchayat Members', label_gu: 'પંચાયતના સભ્યો', link_type: 'builtin', link_value: '/panchayat' },
     { label_en: 'Services', label_gu: 'સેવાઓ', link_type: 'builtin', link_value: '/services' },
-    { label_en: 'Business Directory', label_gu: 'વ્યવસાય નિર્દેશિકા', link_type: 'builtin', link_value: '/business' },
+    { label_en: 'Information', label_gu: 'માહિતી', link_type: 'builtin', link_value: '#', children: [
+        { label_en: 'Photo Gallery', label_gu: 'ફોટો ગેલેરી', link_type: 'builtin', link_value: '/gallery' },
+        { label_en: 'Business Directory', label_gu: 'વ્યવસાય નિર્દેશિકા', link_type: 'builtin', link_value: '/business' },
+    ]},
+    { label_en: 'Schemes', label_gu: 'યોજનાઓ', link_type: 'builtin', link_value: '#', children: [
+        { label_en: 'Admin Services', label_gu: 'વહીવટ સેવાઓ', link_type: 'builtin', link_value: '/services/admin' },
+        { label_en: 'Employment', label_gu: 'રોજગાર', link_type: 'builtin', link_value: '/services/employment' },
+        { label_en: 'Facilities', label_gu: 'સુવિધાઓ', link_type: 'builtin', link_value: '/services/facilities' },
+        { label_en: 'Education', label_gu: 'શિક્ષણ', link_type: 'builtin', link_value: '/services/education' },
+    ]},
+    { label_en: 'Forms', label_gu: 'ફોર્મ', link_type: 'builtin', link_value: '/services/admin/form-download-center' },
+    { label_en: 'Feedback', label_gu: 'અભિપ્રાય', link_type: 'builtin', link_value: '/feedback' },
+    { label_en: 'Complaint', label_gu: 'ફરિયાદ', link_type: 'builtin', link_value: '/complaint' },
     { label_en: 'Contact', label_gu: 'સંપર્ક', link_type: 'builtin', link_value: '/contact' },
 ];
 
@@ -154,20 +168,40 @@ async function main() {
     ]) await req('POST', '/census/add', { token: saylaToken, village: 'sayla', body: c });
 
     for (const m of [
-        { role: 'Sarpanch', name: 'Jayeshbhai Manubhai Zala', email: 'sarpanch.sayla@example.com', mobile: '9820000001', address: 'Panchayat Office, Sayla', description: 'Serving as Sarpanch since 2022, focused on road infrastructure and water supply improvements.' },
-        { role: 'Talati-cum-Mantri', name: 'Rekhaben Chunilal Parmar', email: 'talati.sayla@example.com', mobile: '9820000002', address: 'Panchayat Office, Sayla', description: 'Handles all administrative and record-keeping functions of the panchayat.' },
-        { role: 'Deputy Sarpanch', name: 'Kiritbhai Devraj Solanki', email: 'deputy.sayla@example.com', mobile: '9820000003', address: 'Panchayat Office, Sayla', description: 'Oversees sanitation and public health initiatives.' },
-    ]) await req('POST', '/panchayat/member/add', { token: saylaToken, village: 'sayla', body: m });
+        { role: 'Sarpanch', name: 'Jayeshbhai Manubhai Zala', email: 'sarpanch.sayla@example.com', mobile: '9820000001', address: 'Panchayat Office, Sayla', description: 'Serving as Sarpanch since 2022, focused on road infrastructure and water supply improvements.', avatarBg: '1d4ed8', avatarText: 'JZ' },
+        { role: 'Deputy Sarpanch', name: 'Kiritbhai Devraj Solanki', email: 'deputy.sayla@example.com', mobile: '9820000003', address: 'Panchayat Office, Sayla', description: 'Oversees sanitation and public health initiatives.', avatarBg: '15803d', avatarText: 'KS' },
+        { role: 'Talati-cum-Mantri', name: 'Rekhaben Chunilal Parmar', email: 'talati.sayla@example.com', mobile: '9820000002', address: 'Panchayat Office, Sayla', description: 'Handles all administrative and record-keeping functions of the panchayat.', avatarBg: 'be123c', avatarText: 'RP' },
+        { role: 'Computer Operator (V.C.E.)', name: 'Bharatbhai Sanjaybhai Joshi', email: 'vce.sayla@example.com', mobile: '9820000004', address: 'Panchayat Office, Sayla', description: 'Manages e-Gram Swaraj data entry and digital service delivery for residents.', avatarBg: '7c3aed', avatarText: 'BJ' },
+    ]) {
+        const { avatarBg, avatarText, ...memberBody } = m;
+        const added = await req('POST', '/panchayat/member/add', { token: saylaToken, village: 'sayla', body: memberBody });
+        await req('POST', '/panchayat/member/upload-photo', { token: saylaToken, village: 'sayla', isForm: true, fileField: 'photo', fileName: 'avatar.svg', fileContent: svg(`#${avatarBg}`, '#ffffff', avatarText, 300, 300), extraFields: { memberId: added.id } });
+    }
 
-    for (const a of [
-        { title: 'Nirmal Gram Puraskar (Sample)', awarded_by: 'Ministry of Panchayati Raj, Govt. of India' },
-        { title: 'Best Panchayat Award — Surendranagar District (Sample)', awarded_by: 'District Panchayat Office' },
-    ]) await req('POST', '/achievements/add', { token: saylaToken, village: 'sayla', body: a });
+    const saylaAchievementImgs = await Promise.all([
+        uploadSvg(saylaToken, 'sayla', '/achievements/upload-image', 'image', svg('#fef3c7', '#92400e', 'Nirmal Gram', 500, 300), 'ach1.svg'),
+        uploadSvg(saylaToken, 'sayla', '/achievements/upload-image', 'image', svg('#dbeafe', '#1d4ed8', 'Best Panchayat', 500, 300), 'ach2.svg'),
+    ]);
+    for (const [i, a] of [
+        { title: 'Nirmal Gram Puraskar (Sample)', awarded_by: 'Ministry of Panchayati Raj, Govt. of India', description: 'Awarded for achieving full sanitation coverage and maintaining an open-defecation-free status across all wards of the village for three consecutive years.' },
+        { title: 'Best Panchayat Award — Surendranagar District (Sample)', awarded_by: 'District Panchayat Office', description: 'Recognized for outstanding performance in rural infrastructure development, timely scheme implementation, and transparent fund utilization during 2023-24.' },
+    ].entries()) await req('POST', '/achievements/add', { token: saylaToken, village: 'sayla', body: { ...a, image_url: saylaAchievementImgs[i] } });
 
     for (const p of [
         { name: 'Dr. Nileshbhai Trivedi', achievement: 'Renowned rural health practitioner running a free clinic for over 15 years', role: 'Physician' },
         { name: 'Kamlaben Rathod', achievement: "Founded a women's self-help group weaving cooperative employing 40+ local women", role: 'Social Entrepreneur' },
     ]) await req('POST', '/special-persons/add', { token: saylaToken, village: 'sayla', body: p });
+
+    const SAYLA_REPS = [
+        { role: 'MP (Lok Sabha)', name: 'Shri Kirtibhai Vaghela', party: 'Sample Party — Surendranagar Constituency', avatarBg: 'dc2626', avatarText: 'KV' },
+        { role: 'MLA (Vidhan Sabha)', name: 'Shri Gauravbhai Dabhi', party: 'Sample Party — Sayla Constituency', avatarBg: 'ea580c', avatarText: 'GD' },
+        { role: 'Zilla Panchayat Member', name: 'Shobhnaben Mahendrasinh Bariya', party: 'Sample Party — Surendranagar Zilla Panchayat', avatarBg: 'be185d', avatarText: 'SB' },
+        { role: 'Taluka Panchayat Member', name: 'Gajendrasinh Uderisinh Parmar', party: 'Sample Party — Sayla Taluka Panchayat', avatarBg: '0369a1', avatarText: 'GP' },
+    ];
+    for (const r of SAYLA_REPS) {
+        const photo = await uploadSvg(saylaToken, 'sayla', '/representatives/upload-photo', 'photo', svg(`#${r.avatarBg}`, '#ffffff', r.avatarText, 300, 300), 'rep.svg');
+        await req('POST', '/representatives/add', { token: saylaToken, village: 'sayla', body: { role: r.role, name: r.name, party: r.party, photo_url: photo } });
+    }
 
     await req('PUT', '/navigation', { token: saylaToken, village: 'sayla', body: { items: NAV_ITEMS } });
     await req('PUT', '/contact/info', { token: saylaToken, village: 'sayla', body: {
@@ -175,7 +209,7 @@ async function main() {
         address: 'Gram Panchayat Office, Sayla, Surendranagar, Gujarat 363430',
         hours: '10:00 AM - 5:00 PM, Monday - Saturday',
     }});
-    console.log('Sayla profile + census + panchayat + achievements + navigation + contact done');
+    console.log('Sayla profile + census + panchayat (4, with photos) + achievements (with images) + representatives + navigation + contact done');
 
     const SAYLA_FAQS = [
         { question_en: 'How do I apply for a birth certificate?', question_gu: 'જન્મ પ્રમાણપત્ર માટે કેવી રીતે અરજી કરવી?', answer_en: 'Visit the Panchayat Office with the hospital discharge slip and parents\' ID proof. Certificates are typically issued within 7 working days.', answer_gu: 'હોસ્પિટલ ડિસ્ચાર્જ સ્લિપ અને માતા-પિતાના ઓળખ પુરાવા સાથે પંચાયત ઓફિસની મુલાકાત લો. પ્રમાણપત્ર સામાન્ય રીતે ૭ કાર્યકારી દિવસોમાં જારી થાય છે.' },
@@ -467,19 +501,36 @@ async function main() {
     ]) await req('POST', '/census/add', { token: kukavavToken, village: 'kukavav', body: c });
 
     for (const m of [
-        { role: 'Sarpanch', name: 'Bharatbhai Ravjibhai Dodiya', email: 'sarpanch.kukavav@example.com', mobile: '9830000001', address: 'Panchayat Office, Kukavav', description: 'Sarpanch since 2021, prioritizing farm-to-market road access and irrigation support.' },
-        { role: 'Talati-cum-Mantri', name: 'Meenaben Devjibhai Sondarva', email: 'talati.kukavav@example.com', mobile: '9830000002', address: 'Panchayat Office, Kukavav', description: 'Manages panchayat records and government scheme enrollment for residents.' },
-    ]) await req('POST', '/panchayat/member/add', { token: kukavavToken, village: 'kukavav', body: m });
+        { role: 'Sarpanch', name: 'Bharatbhai Ravjibhai Dodiya', email: 'sarpanch.kukavav@example.com', mobile: '9830000001', address: 'Panchayat Office, Kukavav', description: 'Sarpanch since 2021, prioritizing farm-to-market road access and irrigation support.', avatarBg: '1d4ed8', avatarText: 'BD' },
+        { role: 'Talati-cum-Mantri', name: 'Meenaben Devjibhai Sondarva', email: 'talati.kukavav@example.com', mobile: '9830000002', address: 'Panchayat Office, Kukavav', description: 'Manages panchayat records and government scheme enrollment for residents.', avatarBg: 'be123c', avatarText: 'MS' },
+    ]) {
+        const { avatarBg, avatarText, ...memberBody } = m;
+        const added = await req('POST', '/panchayat/member/add', { token: kukavavToken, village: 'kukavav', body: memberBody });
+        await req('POST', '/panchayat/member/upload-photo', { token: kukavavToken, village: 'kukavav', isForm: true, fileField: 'photo', fileName: 'avatar.svg', fileContent: svg(`#${avatarBg}`, '#ffffff', avatarText, 300, 300), extraFields: { memberId: added.id } });
+    }
 
-    for (const a of [
-        { title: 'Swachh Gram Award (Sample)', awarded_by: 'Amreli District Panchayat' },
-        { title: 'ODF (Open Defecation Free) Certified Village', awarded_by: 'Swachh Bharat Mission, Govt. of Gujarat' },
-    ]) await req('POST', '/achievements/add', { token: kukavavToken, village: 'kukavav', body: a });
+    const kukavavAchievementImgs = await Promise.all([
+        uploadSvg(kukavavToken, 'kukavav', '/achievements/upload-image', 'image', svg('#dcfce7', '#15803d', 'Swachh Gram', 500, 300), 'ach1.svg'),
+        uploadSvg(kukavavToken, 'kukavav', '/achievements/upload-image', 'image', svg('#e0f2fe', '#0369a1', 'ODF Village', 500, 300), 'ach2.svg'),
+    ]);
+    for (const [i, a] of [
+        { title: 'Swachh Gram Award (Sample)', awarded_by: 'Amreli District Panchayat', description: 'Awarded for exemplary village cleanliness drives and consistent solid-waste management practices sustained over multiple years.' },
+        { title: 'ODF (Open Defecation Free) Certified Village', awarded_by: 'Swachh Bharat Mission, Govt. of Gujarat', description: 'Certified after 100% household toilet coverage was verified and sustained across all residential areas of the village.' },
+    ].entries()) await req('POST', '/achievements/add', { token: kukavavToken, village: 'kukavav', body: { ...a, image_url: kukavavAchievementImgs[i] } });
 
     for (const p of [
         { name: 'Ramjibhai Vaghela', achievement: 'Progressive farmer recognized for pioneering drip-irrigation adoption in the taluka', role: 'Farmer' },
         { name: 'Kokilaben Parmar', achievement: 'Founded a self-help group supporting 25 rural women with micro-enterprise loans', role: 'Social Entrepreneur' },
     ]) await req('POST', '/special-persons/add', { token: kukavavToken, village: 'kukavav', body: p });
+
+    const KUKAVAV_REPS = [
+        { role: 'MLA (Vidhan Sabha)', name: 'Shri Kalubhai Radadiya', party: 'Sample Party — Kukavav-Bagasara Constituency', avatarBg: 'ea580c', avatarText: 'KR' },
+        { role: 'Taluka Panchayat Member', name: 'Vijaybhai Chauhan', party: 'Sample Party — Kukavav-Bagasara Taluka Panchayat', avatarBg: '0369a1', avatarText: 'VC' },
+    ];
+    for (const r of KUKAVAV_REPS) {
+        const photo = await uploadSvg(kukavavToken, 'kukavav', '/representatives/upload-photo', 'photo', svg(`#${r.avatarBg}`, '#ffffff', r.avatarText, 300, 300), 'rep.svg');
+        await req('POST', '/representatives/add', { token: kukavavToken, village: 'kukavav', body: { role: r.role, name: r.name, party: r.party, photo_url: photo } });
+    }
 
     await req('PUT', '/navigation', { token: kukavavToken, village: 'kukavav', body: { items: NAV_ITEMS } });
     await req('PUT', '/contact/info', { token: kukavavToken, village: 'kukavav', body: {
@@ -487,7 +538,7 @@ async function main() {
         address: 'Gram Panchayat Office, Kukavav, Amreli, Gujarat 365560',
         hours: '10:00 AM - 5:00 PM, Monday - Saturday',
     }});
-    console.log('Kukavav profile + census + panchayat + achievements + navigation + contact done');
+    console.log('Kukavav profile + census + panchayat (with photos) + achievements (with images) + representatives + navigation + contact done');
 
     await makeBusiness(kukavavToken, 'kukavav', {
         key: 'krushi', name: 'Kukavav Krushi Kendra', name_gu: 'કુકાવાવ કૃષિ કેન્દ્ર',

@@ -177,8 +177,14 @@ const AdminDashboard = () => {
     const [villageSaving, setVillageSaving] = useState(false);
 
     // Achievements & Special Personalities state
-    const [achievementForm, setAchievementForm] = useState({ title: '', awarded_by: '' });
+    const [achievementForm, setAchievementForm] = useState({ title: '', awarded_by: '', description: '' });
+    const [achievementImageFile, setAchievementImageFile] = useState(null);
     const [specialPersonForm, setSpecialPersonForm] = useState({ name: '', achievement: '', role: '' });
+
+    // Representatives state
+    const [repForm, setRepForm] = useState({ role: '', name: '', party: '' });
+    const [repPhotoFile, setRepPhotoFile] = useState(null);
+    const [representatives, setRepresentatives] = useState([]);
 
     // FAQ chat widget state
     const [faqs, setFaqs] = useState([]);
@@ -238,16 +244,18 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [vRes, cRes, mRes, fRes] = await Promise.all([
+            const [vRes, cRes, mRes, fRes, rRes] = await Promise.all([
                 axios.get('/village'),
                 axios.get('/census'),
                 axios.get('/panchayat'),
-                axios.get('/faqs')
+                axios.get('/faqs'),
+                axios.get('/representatives')
             ]);
             setVillageData(vRes.data);
             setCensusData(cRes.data);
             setMembers(mRes.data);
             setFaqs(fRes.data);
+            setRepresentatives(rRes.data);
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -357,8 +365,16 @@ const AdminDashboard = () => {
     const handleAddAchievement = async () => {
         if (!achievementForm.title.trim()) { alert('Please enter a title'); return; }
         try {
-            await axios.post('/achievements/add', achievementForm);
-            setAchievementForm({ title: '', awarded_by: '' });
+            let image_url = '';
+            if (achievementImageFile) {
+                const fd = new FormData();
+                fd.append('image', achievementImageFile);
+                const up = await axios.post('/achievements/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                image_url = up.data.url;
+            }
+            await axios.post('/achievements/add', { ...achievementForm, image_url });
+            setAchievementForm({ title: '', awarded_by: '', description: '' });
+            setAchievementImageFile(null);
             fetchData();
         } catch {
             alert('Failed to add achievement');
@@ -402,6 +418,31 @@ const AdminDashboard = () => {
     const handleDeleteFaq = async (id) => {
         if (!window.confirm('Delete this FAQ?')) return;
         await axios.delete(`/faqs/${id}`);
+        fetchData();
+    };
+
+    const handleAddRepresentative = async () => {
+        if (!repForm.role.trim() || !repForm.name.trim()) { alert('Please enter a role and name'); return; }
+        try {
+            let photo_url = '';
+            if (repPhotoFile) {
+                const fd = new FormData();
+                fd.append('photo', repPhotoFile);
+                const up = await axios.post('/representatives/upload-photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                photo_url = up.data.url;
+            }
+            await axios.post('/representatives/add', { ...repForm, photo_url });
+            setRepForm({ role: '', name: '', party: '' });
+            setRepPhotoFile(null);
+            fetchData();
+        } catch {
+            alert('Failed to add representative');
+        }
+    };
+
+    const handleDeleteRepresentative = async (id) => {
+        if (!window.confirm('Delete this representative?')) return;
+        await axios.delete(`/representatives/${id}`);
         fetchData();
     };
 
@@ -893,24 +934,62 @@ const AdminDashboard = () => {
                         {/* Achievements Section */}
                         <Card>
                             <h3 className="text-lg font-bold mb-4">{t('Achievements', 'ગામની સિદ્ધિઓ')}</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                 <Input value={achievementForm.title} onChange={e => setAchievementForm(p => ({ ...p, title: e.target.value }))} placeholder={t('Title', 'શીર્ષક')} />
-                                <div className="flex gap-2">
-                                    <Input value={achievementForm.awarded_by} onChange={e => setAchievementForm(p => ({ ...p, awarded_by: e.target.value }))} placeholder={t('Awarded by', 'એનાયત')} />
+                                <Input value={achievementForm.awarded_by} onChange={e => setAchievementForm(p => ({ ...p, awarded_by: e.target.value }))} placeholder={t('Awarded by', 'એનાયત')} />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                                <textarea value={achievementForm.description} onChange={e => setAchievementForm(p => ({ ...p, description: e.target.value }))} placeholder={t('Description (shown in "Read more")', 'વર્ણન ("વધુ વાંચો" માં દેખાય છે)')} rows={2}
+                                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" />
+                                <div className="flex gap-2 items-center">
+                                    <input type="file" accept="image/*" onChange={e => setAchievementImageFile(e.target.files?.[0] || null)} className="text-xs flex-1" />
                                     <Button onClick={handleAddAchievement} className="w-auto px-4">{t('Add', 'ઉમેરો')}</Button>
                                 </div>
                             </div>
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {(villageData?.achievements || []).map(a => (
                                     <div key={a.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
-                                        <div>
-                                            <p className="font-semibold text-gray-800 text-sm">{a.title}</p>
-                                            {a.awarded_by && <p className="text-xs text-gray-500">{a.awarded_by}</p>}
+                                        <div className="flex items-center gap-3">
+                                            {a.image_url && <img src={a.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
+                                            <div>
+                                                <p className="font-semibold text-gray-800 text-sm">{a.title}</p>
+                                                {a.awarded_by && <p className="text-xs text-gray-500">{a.awarded_by}</p>}
+                                            </div>
                                         </div>
-                                        <button onClick={() => handleDeleteAchievement(a.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                                        <button onClick={() => handleDeleteAchievement(a.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                 ))}
                                 {(!villageData?.achievements || villageData.achievements.length === 0) && <p className="text-sm text-gray-400">{t('No achievements yet.', 'હજુ કોઈ સિદ્ધિ નથી.')}</p>}
+                            </div>
+                        </Card>
+
+                        {/* Representatives Section */}
+                        <Card>
+                            <h3 className="text-lg font-bold mb-1">{t('Representatives', 'પ્રતિનિધિઓ')}</h3>
+                            <p className="text-sm text-gray-400 mb-4">{t('MP, MLA, Zilla/Taluka Panchayat members — shown alongside Panchayat Members.', 'સંસદસભ્ય, ધારાસભ્ય, જિલ્લા/તાલુકા પંચાયત સભ્યો — પંચાયત સભ્યોની સાથે દેખાય છે.')}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                                <Input value={repForm.role} onChange={e => setRepForm(p => ({ ...p, role: e.target.value }))} placeholder={t('Role (e.g. MP, MLA)', 'ભૂમિકા (દા.ત. MP, MLA)')} />
+                                <Input value={repForm.name} onChange={e => setRepForm(p => ({ ...p, name: e.target.value }))} placeholder={t('Name', 'નામ')} />
+                                <Input value={repForm.party} onChange={e => setRepForm(p => ({ ...p, party: e.target.value }))} placeholder={t('Party (optional)', 'પક્ષ (વૈકલ્પિક)')} />
+                            </div>
+                            <div className="flex gap-2 items-center mb-4">
+                                <input type="file" accept="image/*" onChange={e => setRepPhotoFile(e.target.files?.[0] || null)} className="text-xs flex-1" />
+                                <Button onClick={handleAddRepresentative} className="w-auto px-4">{t('Add', 'ઉમેરો')}</Button>
+                            </div>
+                            <div className="space-y-2">
+                                {representatives.map(r => (
+                                    <div key={r.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
+                                        <div className="flex items-center gap-3">
+                                            <img src={r.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(r.name)}&background=dc2626&color=fff`} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                                            <div>
+                                                <p className="font-semibold text-gray-800 text-sm">{r.name}</p>
+                                                <p className="text-xs text-gray-500">{r.role} {r.party && `· ${r.party}`}</p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => handleDeleteRepresentative(r.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                ))}
+                                {representatives.length === 0 && <p className="text-sm text-gray-400">{t('No representatives added yet.', 'હજુ કોઈ પ્રતિનિધિ ઉમેરાયા નથી.')}</p>}
                             </div>
                         </Card>
 
@@ -975,10 +1054,10 @@ const AdminDashboard = () => {
                                     <Users className="w-6 h-6 text-primary-600" />
                                     <h3 className="text-lg font-bold">{t('Panchayat Members', 'પંચાયત સભ્યો')}</h3>
                                     <span className="text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded-full font-semibold">
-                                        {members.length}/3
+                                        {members.length}/4
                                     </span>
                                 </div>
-                                {members.length < 3 && (
+                                {members.length < 4 && (
                                     <Button
                                         onClick={() => setShowAddMember(p => !p)}
                                         className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm whitespace-nowrap"
@@ -987,8 +1066,8 @@ const AdminDashboard = () => {
                                         {showAddMember ? t('Cancel', 'રદ કરો') : t('Add Member', 'સભ્ય ઉમેરો')}
                                     </Button>
                                 )}
-                                {members.length >= 3 && (
-                                    <span className="text-xs text-gray-400 italic">{t('Maximum 3 members reached', 'મહત્તમ 3 સભ્યો પહોંચી ગયા')}</span>
+                                {members.length >= 4 && (
+                                    <span className="text-xs text-gray-400 italic">{t('Maximum 4 members reached', 'મહત્તમ 4 સભ્યો પહોંચી ગયા')}</span>
                                 )}
                             </div>
 
@@ -1010,7 +1089,10 @@ const AdminDashboard = () => {
                                             >
                                                 <option value="">{t('Select role', 'ભૂમિકા પસંદ કરો')}</option>
                                                 <option value="Sarpanch">{t('Sarpanch', 'સરપંચ')}</option>
+                                                <option value="Deputy Sarpanch">{t('Deputy Sarpanch', 'ઉપસરપંચ')}</option>
+                                                <option value="Talati-cum-Mantri">{t('Talati-cum-Mantri', 'તલાટી કમ મંત્રી')}</option>
                                                 <option value="Secretary">{t('Secretary', 'સચિવ')}</option>
+                                                <option value="Computer Operator (V.C.E.)">{t('Computer Operator (V.C.E.)', 'કમ્પ્યુટર ઓપરેટર (V.C.E.)')}</option>
                                                 <option value="Member">{t('Member', 'સભ્ય')}</option>
                                             </select>
                                         </div>
@@ -1340,6 +1422,11 @@ const ContactAdmin = ({ t }) => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <p className="font-bold text-gray-900">{msg.name}</p>
+                                            {msg.type && msg.type !== 'general' && (
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${msg.type === 'complaint' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                    {msg.type === 'complaint' ? t('Complaint', 'ફરિયાદ') : t('Feedback', 'અભિપ્રાય')}
+                                                </span>
+                                            )}
                                             {!msg.is_read && (
                                                 <span className="bg-primary-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">{t('New', 'નવું')}</span>
                                             )}

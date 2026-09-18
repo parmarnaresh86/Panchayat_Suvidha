@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import axios from '../api/axios';
 
-const ContactPage = () => {
+const ContactPage = ({ type = 'general', titleEn, titleGu, subtitleEn, subtitleGu }) => {
     const { t } = useLanguage();
     const [contactInfo, setContactInfo] = useState({
         phone: '+91 12345 67890',
@@ -25,7 +25,7 @@ const ContactPage = () => {
         setSubmitting(true);
         setSubmitSuccess(false);
         try {
-            await axios.post('/contact/message', formData);
+            await axios.post('/contact/message', { ...formData, type });
             setSubmitSuccess(true);
             setFormData({ name: '', email: '', message: '' });
             setTimeout(() => setSubmitSuccess(false), 5000);
@@ -38,8 +38,12 @@ const ContactPage = () => {
 
     return (
         <div className="container mx-auto p-6 space-y-8" id="quick-contact">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900">{t('Contact Panchayat', 'સંપર્ક પંચાયત')}</h1>
-            <p className="text-gray-600">{t('Reach out for support, complaints, and civic services.', 'સહાય, ફરિયાદો અને નાગરિક સેવાઓ માટે સંપર્ક કરો.')}</p>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900">
+                {t(titleEn || 'Contact Panchayat', titleGu || 'સંપર્ક પંચાયત')}
+            </h1>
+            <p className="text-gray-600">
+                {t(subtitleEn || 'Reach out for support, complaints, and civic services.', subtitleGu || 'સહાય, ફરિયાદો અને નાગરિક સેવાઓ માટે સંપર્ક કરો.')}
+            </p>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">

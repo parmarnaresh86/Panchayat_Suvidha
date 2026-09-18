@@ -398,12 +398,12 @@ app.post('/panchayat/member/add', requireAdmin, async (req, res) => {
         const pool = await poolPromise;
         const vid = req.village.id;
 
-        // Enforce 3-member limit
+        // Enforce 4-member limit
         const countRes = await pool.request()
             .input('vid', sql.Int, vid)
             .query('SELECT COUNT(*) AS cnt FROM PanchayatMembers WHERE village_id = @vid');
         const count = countRes.recordset[0]?.cnt ?? 0;
-        if (count >= 3) return res.status(400).json({ error: 'Maximum 3 members allowed' });
+        if (count >= 4) return res.status(400).json({ error: 'Maximum 4 members allowed' });
 
         const result = await pool.request()
             .input('village_id', sql.Int, vid)
@@ -806,18 +806,25 @@ app.delete('/village/image/:id', requireAdmin, async (req, res) => {
 // Admin: add a village achievement
 app.post('/achievements/add', requireAdmin, async (req, res) => {
     try {
-        const { title, awarded_by } = req.body;
+        const { title, awarded_by, description, image_url } = req.body;
         if (!title) return res.status(400).json({ error: 'title is required' });
         const pool = await poolPromise;
         await pool.request()
             .input('vid', sql.Int, req.village.id)
             .input('title', sql.NVarChar, title)
             .input('awarded', sql.NVarChar, awarded_by ?? '')
-            .query('INSERT INTO Achievements (village_id, title, awarded_by) VALUES (@vid, @title, @awarded)');
+            .input('desc', sql.NVarChar, description ?? '')
+            .input('image', sql.NVarChar, image_url ?? '')
+            .query('INSERT INTO Achievements (village_id, title, awarded_by, description, image_url) VALUES (@vid, @title, @awarded, @desc, @image)');
         res.json({ message: 'Achievement added successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+app.post('/achievements/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    res.json({ url: fileUrl(req, req.file.filename) });
 });
 
 app.delete('/achievements/:id', requireAdmin, async (req, res) => {
@@ -911,6 +918,65 @@ app.delete('/faqs/:id', requireAdmin, async (req, res) => {
             .input('vid', sql.Int, req.village.id)
             .query('DELETE FROM FAQs WHERE id = @id AND village_id = @vid');
         res.json({ message: 'FAQ deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Representatives — elected reps above the local panchayat (MP/MLA/
+// Zilla Panchayat/Taluka Panchayat), shown alongside Panchayat Members ──
+app.get('/representatives', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT * FROM Representatives WHERE village_id = @vid ORDER BY display_order, id');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/representatives/add', requireAdmin, async (req, res) => {
+    try {
+        const { role, name, party, description, photo_url } = req.body;
+        if (!role || !name) return res.status(400).json({ error: 'role and name are required' });
+        const pool = await poolPromise;
+        const countRes = await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .query('SELECT COUNT(*) AS cnt FROM Representatives WHERE village_id = @vid');
+        const order = countRes.recordset[0]?.cnt ?? 0;
+        await pool.request()
+            .input('vid', sql.Int, req.village.id)
+            .input('role', sql.NVarChar, role)
+            .input('name', sql.NVarChar, name)
+            .input('party', sql.NVarChar, party ?? '')
+            .input('desc', sql.NVarChar, description ?? '')
+            .input('photo', sql.NVarChar, photo_url ?? '')
+            .input('order', sql.Int, order)
+            .query(`
+                INSERT INTO Representatives (village_id, role, name, party, description, photo_url, display_order)
+                VALUES (@vid, @role, @name, @party, @desc, @photo, @order)
+            `);
+        res.json({ message: 'Representative added successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/representatives/upload-photo', requireAdmin, upload.single('photo'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    res.json({ url: fileUrl(req, req.file.filename) });
+});
+
+app.delete('/representatives/:id', requireAdmin, async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .input('vid', sql.Int, req.village.id)
+            .query('DELETE FROM Representatives WHERE id = @id AND village_id = @vid');
+        res.json({ message: 'Representative deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1474,10 +1540,11 @@ app.put('/contact/info', requireAdmin, async (req, res) => {
 // POST /contact/message — submit a contact message
 app.post('/contact/message', async (req, res) => {
     try {
-        const { name, email, message } = req.body;
+        const { name, email, message, type } = req.body;
         if (!name || !email || !message) {
             return res.status(400).json({ error: 'Name, email, and message are required' });
         }
+        const finalType = ['feedback', 'complaint'].includes(type) ? type : 'general';
 
         const pool = await poolPromise;
         await pool.request()
@@ -1485,9 +1552,10 @@ app.post('/contact/message', async (req, res) => {
             .input('name', sql.NVarChar, name)
             .input('email', sql.NVarChar, email)
             .input('message', sql.NVarChar, message)
+            .input('type', sql.NVarChar, finalType)
             .query(`
-                INSERT INTO ContactMessages (village_id, name, email, message, created_at)
-                VALUES (@vid, @name, @email, @message, CURRENT_TIMESTAMP)
+                INSERT INTO ContactMessages (village_id, name, email, message, type, created_at)
+                VALUES (@vid, @name, @email, @message, @type, CURRENT_TIMESTAMP)
             `);
 
         res.json({ message: 'Message sent successfully' });
@@ -1503,7 +1571,7 @@ app.get('/contact/messages', requireAdmin, async (req, res) => {
         const result = await pool.request()
             .input('vid', sql.Int, req.village.id)
             .query(`
-                SELECT id, name, email, message, created_at, is_read
+                SELECT id, name, email, message, type, created_at, is_read
                 FROM ContactMessages
                 WHERE village_id = @vid
                 ORDER BY created_at DESC

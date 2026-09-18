@@ -25,6 +25,19 @@ if (!villageColumns.includes('theme')) {
     database.exec("ALTER TABLE Village ADD COLUMN theme TEXT NOT NULL DEFAULT 'classic'");
 }
 
+const achievementColumns = database.prepare("PRAGMA table_info(Achievements)").all().map(c => c.name);
+if (!achievementColumns.includes('description')) {
+    database.exec("ALTER TABLE Achievements ADD COLUMN description TEXT");
+}
+if (!achievementColumns.includes('image_url')) {
+    database.exec("ALTER TABLE Achievements ADD COLUMN image_url TEXT");
+}
+
+const contactMessageColumns = database.prepare("PRAGMA table_info(ContactMessages)").all().map(c => c.name);
+if (!contactMessageColumns.includes('type')) {
+    database.exec("ALTER TABLE ContactMessages ADD COLUMN type TEXT NOT NULL DEFAULT 'general'");
+}
+
 // Kept so existing `.input(name, sql.NVarChar, value)` call sites (written
 // for the old mssql driver) keep working unchanged against sqlite.
 const textType = () => 'TEXT';

@@ -99,23 +99,52 @@ const VillageHistoryBlock = () => {
     );
 };
 
+const AchievementCard = ({ ach }) => {
+    const { t } = useLanguage();
+    const [expanded, setExpanded] = useState(false);
+    return (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+            <div className="h-36 bg-gray-100 overflow-hidden">
+                {ach.image_url ? (
+                    <img src={ach.image_url} alt={ach.title} className="w-full h-full object-cover" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-4xl bg-primary-50">🥇</div>
+                )}
+            </div>
+            <div className="p-4 flex flex-col flex-1">
+                <h3 className="font-bold text-gray-800 text-sm leading-snug">{ach.title}</h3>
+                {ach.awarded_by && <p className="text-xs text-primary-600 font-medium mt-1">{ach.awarded_by}</p>}
+                {ach.description && (
+                    <>
+                        <p className={`text-xs text-gray-500 mt-2 flex-1 ${expanded ? '' : 'line-clamp-2'}`}>{ach.description}</p>
+                        <button onClick={() => setExpanded(e => !e)} className="text-xs font-semibold text-primary-500 hover:text-primary-700 mt-2 self-start">
+                            {expanded ? t('Show less', 'ઓછું બતાવો') : t('Read more', 'વધુ વાંચો')}
+                        </button>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const VillageAchievementsBlock = ({ props: s }) => {
     const { t } = useLanguage();
     const [village, setVillage] = useState(null);
     useEffect(() => { axios.get('/village').then(r => setVillage(r.data)).catch(() => {}); }, []);
     if (!village) return <Skeleton height={160} />;
+    if (!village.achievements?.length) return null;
     return (
-        <Card>
-            <h2 className="text-2xl font-bold mb-4 text-primary-700 flex items-center"><span className="mr-2">🏆</span>{t(s.headingEn || 'Achievements', s.headingGu || 'ગામની સિદ્ધિઓ')}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {village.achievements?.map((ach, idx) => (
-                    <div key={idx} className="bg-primary-50 p-4 rounded-xl border border-primary-100 flex items-start">
-                        <div className="bg-primary-500 text-white p-2 rounded-lg mr-4">🥇</div>
-                        <div><h3 className="font-bold text-gray-800">{ach.title}</h3><p className="text-sm text-gray-600">{ach.awarded_by}</p></div>
-                    </div>
-                ))}
+        <section className="space-y-6">
+            <div>
+                <span className="text-xs font-bold tracking-widest text-primary-500 uppercase">{t('Recognition', 'સન્માન')}</span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-1 flex items-center gap-2">
+                    <span>🏆</span>{t(s.headingEn || 'Achievements', s.headingGu || 'ગ્રામ પંચાયતની સિદ્ધિઓ')}
+                </h2>
             </div>
-        </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {village.achievements.map(ach => <AchievementCard key={ach.id} ach={ach} />)}
+            </div>
+        </section>
     );
 };
 

@@ -18,6 +18,9 @@ import StaffAttendancePage from './pages/StaffAttendancePage';
 
 const ServicesPage  = lazy(() => import('./pages/ServicesPage'));
 const ContactPage   = lazy(() => import('./pages/ContactPage'));
+const FeedbackPage  = lazy(() => import('./pages/FeedbackPage'));
+const ComplaintPage = lazy(() => import('./pages/ComplaintPage'));
+const GalleryPage   = lazy(() => import('./pages/GalleryPage'));
 const PublishedPage = lazy(() => import('./pages/PublishedPage'));
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
 const BusinessDirectoryPage = lazy(() => import('./pages/BusinessDirectoryPage'));
@@ -102,6 +105,9 @@ function AppContent() {
                         <Route path="/panchayat" element={<PanchayatDetails />} />
                         <Route path="/services"  element={<ServicesPage />} />
                         <Route path="/contact"   element={<ContactPage />} />
+                        <Route path="/feedback"  element={<FeedbackPage />} />
+                        <Route path="/complaint" element={<ComplaintPage />} />
+                        <Route path="/gallery"   element={<GalleryPage />} />
                         {/* Specific routes must come before dynamic param routes */}
                         <Route path="/services/admin/form-download-center" element={<FormDownloadPage />} />
                         {/* Marking attendance is an update action, so this one stays behind login */}

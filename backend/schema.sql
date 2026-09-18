@@ -20,7 +20,23 @@ CREATE TABLE IF NOT EXISTS Achievements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
-    awarded_by TEXT
+    awarded_by TEXT,
+    description TEXT,
+    image_url TEXT
+);
+
+-- Representatives table — elected representatives above the local panchayat
+-- (MP, MLA, Zilla Panchayat member, Taluka Panchayat member), shown
+-- alongside Panchayat Members on the Panchayat Members page.
+CREATE TABLE IF NOT EXISTS Representatives (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    village_id INTEGER NOT NULL REFERENCES Village(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    name TEXT NOT NULL,
+    party TEXT,
+    description TEXT,
+    photo_url TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0
 );
 
 -- SpecialPersonalities table
@@ -277,6 +293,7 @@ CREATE TABLE IF NOT EXISTS ContactMessages (
     name       TEXT NOT NULL,
     email      TEXT NOT NULL,
     message    TEXT NOT NULL,
+    type       TEXT NOT NULL DEFAULT 'general', -- 'general' | 'feedback' | 'complaint'
     is_read    INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
